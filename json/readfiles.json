@@ -1,0 +1,10 @@
+{
+    "rawdata":{
+        "deviceqe": "/Users/kazufumiwatanabe/go/src/PixelTool/data/device_QE.csv",
+        "illuminationa": "/Users/kazufumiwatanabe/go/src/PixelTool/data/illumination_A.csv",
+        "illuminationc65":"/Users/kazufumiwatanabe/go/src/PixelTool/data/illumination_D65.csv",
+        "colorchecker":"/Users/kazufumiwatanabe/go/src/PixelTool/data/Macbeth_Color_Checker.csv",
+        "colorcode":"/Users/kazufumiwatanabe/go/src/PixelTool/data/macbeth_patch_code.csv",
+        "whitepixel":"/Users/kazufumiwatanabe/go/src/PixelTool/data/white_pixel.csv"
+    }
+}
