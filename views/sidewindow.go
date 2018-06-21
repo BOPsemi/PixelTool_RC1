@@ -69,7 +69,7 @@ func NewSideWindow(bus EventBus.Bus) *SideWindow {
 	obj.Cell = widgets.NewQWidget(nil, 0)
 
 	// initalize button
-	obj.applybutton = widgets.NewQPushButton2("Apply", obj.Cell)
+	obj.applybutton = widgets.NewQPushButton2("Run", obj.Cell)
 	obj.defaultButton = widgets.NewQPushButton2("Default Setting", obj.Cell)
 
 	// initialize each gourp

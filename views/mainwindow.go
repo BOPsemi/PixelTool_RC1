@@ -1,6 +1,7 @@
 package views
 
 import (
+	"PixelTool_RC1/models"
 	"fmt"
 	"time"
 
@@ -46,6 +47,9 @@ type MainWindow struct {
 	// --- message box ---
 	messageBox *widgets.QTextEdit // message box
 
+	// --- current path ---
+	settingInfo *models.SettingInfo
+
 	// widget
 	Cell *widgets.QWidget
 }
@@ -66,7 +70,7 @@ func NewMainWindow(bus EventBus.Bus) *MainWindow {
 	obj.stdImageLoadButton = widgets.NewQPushButton2("Image Load", obj.Cell)
 	obj.devImageLoadButton = widgets.NewQPushButton2("Image Load", obj.Cell)
 	obj.reloadElmButton = widgets.NewQPushButton2("Reload Linear Mat Elm data", obj.Cell)
-	obj.showDeltaEButton = widgets.NewQPushButton2("Show DeltaE data", obj.Cell)
+	obj.showDeltaEButton = widgets.NewQPushButton2("Calculate Delta-E", obj.Cell)
 	obj.saveLogButton = widgets.NewQPushButton2("Save Log", obj.Cell)
 
 	// message box setup
@@ -88,15 +92,25 @@ func NewMainWindow(bus EventBus.Bus) *MainWindow {
 	// apply layout
 	obj.Cell.SetLayout(layout)
 
+	// bus subsriber
+	bus.Subscribe("sideWin:settingInfo", obj.settingInfoReciever)
+
 	// action connection
+	// image load buttons
 	obj.stdImageLoadButton.ConnectClicked(func(checked bool) {
-		obj.reloadImage("/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/std_macbeth_chart.png", 0.5, StdImageViewer)
+		filepath := obj.settingInfo.StdPatchSavePath + obj.settingInfo.StdPatchSaveDirName + "/std_24_ColorCahrt.png"
+
+		obj.reloadImage(filepath, 0.5, StdImageViewer)
 		bus.Publish("main:message", "Standard Macbeth Color Chart was reloded")
 	})
 	obj.devImageLoadButton.ConnectClicked(func(checked bool) {
-		obj.reloadImage("/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/std_macbeth_chart.png", 0.5, DevImageViewer)
+		filepath := obj.settingInfo.DevPatchSavePath + obj.settingInfo.DevPatchSaveDirName + "/dev_24_ColorCahrt.png"
+
+		obj.reloadImage(filepath, 0.5, DevImageViewer)
 		bus.Publish("main:message", "Device Macbeth Color Chart was reloded")
 	})
+
+	// other actions
 	obj.reloadElmButton.ConnectClicked(func(checked bool) {
 		bus.Publish("main:message", "Reload linear matrix element data")
 	})
@@ -122,6 +136,10 @@ func NewMainWindow(bus EventBus.Bus) *MainWindow {
 	})
 
 	return obj
+}
+
+func (mm *MainWindow) settingInfoReciever(info *models.SettingInfo) {
+	mm.settingInfo = info
 }
 
 // std group setting
