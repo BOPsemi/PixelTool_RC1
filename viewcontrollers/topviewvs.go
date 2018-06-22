@@ -6,6 +6,12 @@ import (
 	"PixelTool_RC1/util"
 )
 
+const (
+	MacBethColorChartCodeFileName = "Macbeth_Patch_Code.csv"
+	Std24ColorChartName           = "std_24_ColorChart"
+	Dev24ColorChartName           = "dev_24_ColorChart"
+)
+
 /*
 TopViewViewController :
 */
@@ -37,7 +43,7 @@ func (vc *topViewViewController) GenerateStdMacbethColorChart(info *models.Setti
 
 	// directory handler
 	dirHandler := util.NewDirectoryHandler()
-	csvFilePath := dirHandler.GetCurrentDirectoryPath() + "/data/" + "Macbeth_Patch_Code.csv"
+	csvFilePath := dirHandler.GetCurrentDirectoryPath() + "/data/" + MacBethColorChartCodeFileName
 
 	// standard Macbeth color chart generate
 	stdChartVC := NewColorCheckerViewController()
@@ -51,14 +57,16 @@ func (vc *topViewViewController) GenerateStdMacbethColorChart(info *models.Setti
 		// -- create 24 chart
 		// path setting
 		path := info.StdPatchSavePath + info.StdPatchSaveDirName + "/"
-		filename := "std_24_ColorCahrt"
 		imageController := controllers.NewImageController()
 
 		// 24 color chart
-		imageController.Create24MacbethChart(path, filename)
-
-		// update status
-		status = true
+		if imageController.Create24MacbethChart(path, Std24ColorChartName) {
+			// save csv file
+			if stdChartVC.SaveColorCodePatchData(path, Std24ColorChartName) {
+				// update status
+				status = true
+			}
+		}
 	}
 
 	return status
@@ -76,8 +84,11 @@ func (vc *topViewViewController) GenerateDevMacbethColorChart(info *models.Setti
 		start         int   = 400
 		stop          int   = 700
 		step          int   = 5
-		refPatchNo    int   = 19
-		refPatchLevel uint8 = 243
+		refPatchNo    int   = 22
+		refPatchLevel uint8 = 122
+
+		//refPatchNo    int   = 19
+		//refPatchLevel uint8 = 243
 	)
 
 	devChartVC := NewDeviceResponseViewController()
@@ -112,14 +123,15 @@ func (vc *topViewViewController) GenerateDevMacbethColorChart(info *models.Setti
 
 			// create 24 patch
 			path := info.DevPatchSavePath + info.DevPatchSaveDirName + "/"
-			filename := "dev_24_ColorCahrt"
 			imageController := controllers.NewImageController()
 
 			// 24 color chart
-			imageController.Create24MacbethChart(path, filename)
-
-			// update status
-			status = true
+			if imageController.Create24MacbethChart(path, Dev24ColorChartName) {
+				if devChartVC.SaveColorCodePatchData(path, Dev24ColorChartName) {
+					// update status
+					status = true
+				}
+			}
 		}
 	}
 	return status

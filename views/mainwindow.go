@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	nodataImagePath = "./data/NoDataImage.png"
+	nodataImagePath     = "./data/NoDataImage.png"
+	Std24ColorChartName = "std_24_ColorChart"
+	Dev24ColorChartName = "dev_24_ColorChart"
 )
 
 /*
@@ -98,13 +100,13 @@ func NewMainWindow(bus EventBus.Bus) *MainWindow {
 	// action connection
 	// image load buttons
 	obj.stdImageLoadButton.ConnectClicked(func(checked bool) {
-		filepath := obj.settingInfo.StdPatchSavePath + obj.settingInfo.StdPatchSaveDirName + "/std_24_ColorCahrt.png"
+		filepath := obj.settingInfo.StdPatchSavePath + obj.settingInfo.StdPatchSaveDirName + "/" + Std24ColorChartName
 
 		obj.reloadImage(filepath, 0.5, StdImageViewer)
 		bus.Publish("main:message", "Standard Macbeth Color Chart was reloded")
 	})
 	obj.devImageLoadButton.ConnectClicked(func(checked bool) {
-		filepath := obj.settingInfo.DevPatchSavePath + obj.settingInfo.DevPatchSaveDirName + "/dev_24_ColorCahrt.png"
+		filepath := obj.settingInfo.DevPatchSavePath + obj.settingInfo.DevPatchSaveDirName + "/" + Dev24ColorChartName
 
 		obj.reloadImage(filepath, 0.5, DevImageViewer)
 		bus.Publish("main:message", "Device Macbeth Color Chart was reloded")

@@ -227,8 +227,8 @@ func (sw *SideWindow) defaultSetting() {
 	currentPath := dirHandler.GetCurrentDirectoryPath()
 
 	// set default value
-	sw.gammaAdjuster.slider.SetValue(42)
-	sw.gammaAdjuster.textField.SetText("0.42")
+	sw.gammaAdjuster.slider.SetValue(54)
+	sw.gammaAdjuster.textField.SetText("0.54")
 
 	// -- standard patch
 	sw.stdPatchSave.textFieldForPath.SetText(currentPath + "/data/")
