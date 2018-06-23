@@ -7,9 +7,20 @@ import (
 )
 
 const (
-	MacBethColorChartCodeFileName = "Macbeth_Patch_Code.csv"
-	Std24ColorChartName           = "std_24_ColorChart"
-	Dev24ColorChartName           = "dev_24_ColorChart"
+	macBethColorChartCodeFileName = "Macbeth_Patch_Code.csv"
+	std24ColorChartName           = "std_24_ColorChart"
+	dev24ColorChartName           = "dev_24_ColorChart"
+)
+
+const (
+	start         int   = 400
+	stop          int   = 700
+	step          int   = 5
+	refPatchNo    int   = 22
+	refPatchLevel uint8 = 122
+
+	//refPatchNo    int   = 19
+	//refPatchLevel uint8 = 243
 )
 
 /*
@@ -43,7 +54,7 @@ func (vc *topViewViewController) GenerateStdMacbethColorChart(info *models.Setti
 
 	// directory handler
 	dirHandler := util.NewDirectoryHandler()
-	csvFilePath := dirHandler.GetCurrentDirectoryPath() + "/data/" + MacBethColorChartCodeFileName
+	csvFilePath := dirHandler.GetCurrentDirectoryPath() + "/data/" + macBethColorChartCodeFileName
 
 	// standard Macbeth color chart generate
 	stdChartVC := NewColorCheckerViewController()
@@ -60,9 +71,9 @@ func (vc *topViewViewController) GenerateStdMacbethColorChart(info *models.Setti
 		imageController := controllers.NewImageController()
 
 		// 24 color chart
-		if imageController.Create24MacbethChart(path, Std24ColorChartName) {
+		if imageController.Create24MacbethChart(path, std24ColorChartName) {
 			// save csv file
-			if stdChartVC.SaveColorCodePatchData(path, Std24ColorChartName) {
+			if stdChartVC.SaveColorCodePatchData(path, std24ColorChartName) {
 				// update status
 				status = true
 			}
@@ -79,17 +90,6 @@ GenerateDevMacbethColorChart
 */
 func (vc *topViewViewController) GenerateDevMacbethColorChart(info *models.SettingInfo) bool {
 	status := false
-
-	const (
-		start         int   = 400
-		stop          int   = 700
-		step          int   = 5
-		refPatchNo    int   = 22
-		refPatchLevel uint8 = 122
-
-		//refPatchNo    int   = 19
-		//refPatchLevel uint8 = 243
-	)
 
 	devChartVC := NewDeviceResponseViewController()
 
@@ -126,8 +126,8 @@ func (vc *topViewViewController) GenerateDevMacbethColorChart(info *models.Setti
 			imageController := controllers.NewImageController()
 
 			// 24 color chart
-			if imageController.Create24MacbethChart(path, Dev24ColorChartName) {
-				if devChartVC.SaveColorCodePatchData(path, Dev24ColorChartName) {
+			if imageController.Create24MacbethChart(path, dev24ColorChartName) {
+				if devChartVC.SaveColorCodePatchData(path, dev24ColorChartName) {
 					// update status
 					status = true
 				}

@@ -276,9 +276,8 @@ func (rc *responseController) CalculateSRGBGammaCorrection(channelRes *models.Ch
 	gamma := func(data float64) float64 {
 		if data <= 0.0031308 {
 			return data * 12.92
-		} else {
-			return (1.055*math.Pow(data, 1.0/2.4) - 0.055)
 		}
+		return (1.055*math.Pow(data, 1.0/2.4) - 0.055)
 	}
 
 	response.CheckerNumber = channelRes.CheckerNumber

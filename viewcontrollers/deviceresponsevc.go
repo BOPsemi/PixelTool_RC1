@@ -215,9 +215,8 @@ CalculateWhiteBalanceGain
 func (vc *deviceResponseViewController) CalculateWhiteBalanceGain(refPatchNumber int) (redGain, blueGain float64) {
 	if refPatchNumber > -1 && refPatchNumber < 25 {
 		return vc.resCon.CalculateWhiteBalanceGain(vc.linearizedResData[refPatchNumber-1])
-	} else {
-		return 0.0, 0.0
 	}
+	return 0.0, 0.0
 }
 
 /*

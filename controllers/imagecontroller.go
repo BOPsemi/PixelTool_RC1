@@ -7,6 +7,13 @@ import (
 	"image/draw"
 )
 
+/*
+	LeftMargin   :Left space margin
+	RightMargin  :Right space margin
+	TopMargin    :Top space margin
+	BottomMargin :Bottom space margin
+	Spacing      :Spacesing definition
+*/
 var (
 	LeftMargin   = 30
 	RightMargin  = 30

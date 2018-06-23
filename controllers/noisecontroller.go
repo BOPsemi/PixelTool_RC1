@@ -89,7 +89,6 @@ func (nc *noiseController) darkLevelShift(noise color.RGBA, darklevel int) *colo
 
 	if rLevel*gLevel*bLevel < 0 {
 		return &color.RGBA{R: 0, G: 0, B: 0, A: 255}
-	} else {
-		return &color.RGBA{R: uint8(rLevel), G: uint8(gLevel), B: uint8(bLevel), A: 255}
 	}
+	return &color.RGBA{R: uint8(rLevel), G: uint8(gLevel), B: uint8(bLevel), A: 255}
 }

@@ -326,25 +326,23 @@ func (cs *colorSpaceChange) reverseGummaCorrection(colorSP models.ColorSpace, da
 		// CIE case
 		if data > 0.0556 {
 			return math.Pow(data, 2.2)
-		} else {
-			return data / 32.0
 		}
+		return data / 32.0
+
 	case models.SRGB:
 		// SRGB Case
 		if data > 0.04045 {
 			c := (data + 0.055) / 1.055
 			return math.Pow(c, 2.4)
-		} else {
-			return data / 12.92
 		}
+		return data / 12.92
 
 	case models.NTSC:
 		// NTSC case
 		if data > 0.0556 {
 			return math.Pow(data, 2.2)
-		} else {
-			return data / 32.0
 		}
+		return data / 32.0
 
 	default:
 		return 0.0
