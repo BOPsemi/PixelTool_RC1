@@ -37,7 +37,6 @@ func (di *digitizer) D8bitDigitizeData(data float64, refLevel uint8) uint8 {
 			digital = buff
 		}
 	} else {
-		// data binning mode
 
 		// with ref level, it means 1.0 -> refLevel
 		buff := uint8(data * float64(refLevel))

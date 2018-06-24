@@ -4,23 +4,7 @@ import (
 	"PixelTool_RC1/controllers"
 	"PixelTool_RC1/models"
 	"PixelTool_RC1/util"
-)
-
-const (
-	macBethColorChartCodeFileName = "Macbeth_Patch_Code.csv"
-	std24ColorChartName           = "std_24_ColorChart"
-	dev24ColorChartName           = "dev_24_ColorChart"
-)
-
-const (
-	start         int   = 400
-	stop          int   = 700
-	step          int   = 5
-	refPatchNo    int   = 22
-	refPatchLevel uint8 = 122
-
-	//refPatchNo    int   = 19
-	//refPatchLevel uint8 = 243
+	"fmt"
 )
 
 /*
@@ -29,10 +13,14 @@ TopViewViewController :
 type TopViewViewController interface {
 	GenerateStdMacbethColorChart(info *models.SettingInfo) bool
 	GenerateDevMacbethColorChart(info *models.SettingInfo) bool
+
+	EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool)
+	SaveDeltaEResultData() bool
 }
 
 // topViewViewController
 type topViewViewController struct {
+	deltaEval controllers.DeltaEvaluationController
 }
 
 /*
@@ -40,6 +28,8 @@ NewTopViewViewController :initializer
 */
 func NewTopViewViewController() TopViewViewController {
 	obj := new(topViewViewController)
+
+	obj.deltaEval = controllers.NewDeltaEvaluationController()
 
 	return obj
 }
@@ -54,7 +44,7 @@ func (vc *topViewViewController) GenerateStdMacbethColorChart(info *models.Setti
 
 	// directory handler
 	dirHandler := util.NewDirectoryHandler()
-	csvFilePath := dirHandler.GetCurrentDirectoryPath() + "/data/" + macBethColorChartCodeFileName
+	csvFilePath := dirHandler.GetCurrentDirectoryPath() + "/data/" + macbethColorChartCodeFileName
 
 	// standard Macbeth color chart generate
 	stdChartVC := NewColorCheckerViewController()
@@ -135,4 +125,39 @@ func (vc *topViewViewController) GenerateDevMacbethColorChart(info *models.Setti
 		}
 	}
 	return status
+}
+
+/*
+EvaluateDeltaE
+	in	:refDataPath, compDataPath string, kvalues []float64
+	out	:bool
+*/
+func (vc *topViewViewController) EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool) {
+	//deltaEResults := make([]float64, 0)
+
+	if results, status := vc.deltaEval.EvaluateDeltaE(refDataPath, compDataPath, kvalues); status {
+		return results, status
+	}
+
+	return []float64{}, false
+}
+
+/*
+SaveDeltaEResultData
+	in	:savepath, filename string
+	out	:bool
+*/
+func (vc *topViewViewController) SaveDeltaEResultData() bool {
+	// directory handler
+	dirHandler := util.NewDirectoryHandler()
+	savepath := dirHandler.GetCurrentDirectoryPath() + "/data/"
+	//savepath := dirHandler.GetCurrentDirectoryPath() + "/"
+
+	fmt.Println(savepath)
+
+	if vc.deltaEval.SaveDeltaEResultData(savepath, deltaEReulstFileName) {
+		return true
+	}
+
+	return false
 }

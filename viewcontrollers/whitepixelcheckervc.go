@@ -108,7 +108,7 @@ func (vc *whitePixelCheckerViewController) CreateWhitePixelPatch(csvfilepath, fi
 
 					// create white pixel image
 					rawimage := vc.imgcontroller.CreateImage(vc.imagedata, height, width)
-					vc.iohandler.StreamOutPNGFile(path, "white_pixel", rawimage)
+					vc.iohandler.StreamOutPNGFile(path, whitePixelPatchName, rawimage)
 
 					// status update
 					status = true
@@ -117,7 +117,7 @@ func (vc *whitePixelCheckerViewController) CreateWhitePixelPatch(csvfilepath, fi
 
 					// create white pixel image
 					rawimage := vc.imgcontroller.CreateImage(vc.imagedata, height, width)
-					vc.iohandler.StreamOutPNGFile(path, "white_pixel", rawimage)
+					vc.iohandler.StreamOutPNGFile(path, whitePixelPatchName, rawimage)
 
 					// status update
 					status = true

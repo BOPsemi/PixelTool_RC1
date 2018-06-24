@@ -76,12 +76,12 @@ func (vc *deviceResponseViewController) SetupReadingFile(info *models.SettingInf
 	path := dirHandler.GetCurrentDirectoryPath() + "/data/"
 
 	// illumination data path
-	filepath["D65"] = path + "illumination_D65.csv"
-	filepath["IllA"] = path + "illumination_A.csv"
+	filepath["D65"] = path + illuminationD65FileName
+	filepath["IllA"] = path + illuminationIllAFileName
 
 	// raw data
 	filepath["DeviceQE"] = info.DeiceQEDataPath
-	filepath["ColorChecker"] = path + "Macbeth_Color_Checker.csv"
+	filepath["ColorChecker"] = path + macbethColorCheckerFileName
 
 	return filepath
 }
