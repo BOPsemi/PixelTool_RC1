@@ -151,7 +151,6 @@ func (vc *topViewViewController) SaveDeltaEResultData() bool {
 	// directory handler
 	dirHandler := util.NewDirectoryHandler()
 	savepath := dirHandler.GetCurrentDirectoryPath() + "/data/"
-	//savepath := dirHandler.GetCurrentDirectoryPath() + "/"
 
 	fmt.Println(savepath)
 
