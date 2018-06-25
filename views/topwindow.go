@@ -3,6 +3,7 @@ package views
 import (
 	"PixelTool_RC1/models"
 	"PixelTool_RC1/viewcontrollers"
+	"strconv"
 	"time"
 
 	"github.com/asaskevich/EventBus"
@@ -25,6 +26,9 @@ type TopWindow struct {
 
 	Cell *widgets.QWidget
 
+	// view controller
+	viewController viewcontrollers.TopViewViewController
+
 	// state indicator
 	stdChartReady bool
 }
@@ -42,6 +46,9 @@ func NewTopWindow(bus EventBus.Bus) *TopWindow {
 	obj.sideWin = NewSideWindow(bus)
 	obj.mainWin = NewMainWindow(bus)
 
+	// initialize view controller
+	obj.viewController = viewcontrollers.NewTopViewViewController()
+
 	// resize
 	obj.sideWin.Cell.SetMaximumWidth(460)
 
@@ -55,6 +62,9 @@ func NewTopWindow(bus EventBus.Bus) *TopWindow {
 
 	// event bus subscribe
 	bus.Subscribe("sideWin:settingInfo", obj.settingInfoReciever)
+	bus.Subscribe("main:calculateDeltaE", obj.calculateDeltaE)
+	bus.Subscribe("main:optimizeLinearMat", obj.optimizeLinearMat)
+
 	bus.Subscribe("main:message", obj.messageReciever)
 
 	// state indicator
@@ -64,13 +74,14 @@ func NewTopWindow(bus EventBus.Bus) *TopWindow {
 }
 
 // --- Subscriber ---
+// Setting Infor reciever
 func (tw *TopWindow) settingInfoReciever(info *models.SettingInfo) {
 	// initalize view controller
-	vc := viewcontrollers.NewTopViewViewController()
+	//vc := viewcontrollers.NewTopViewViewController()
 
 	// generate standard Macbeth color charts
 	if !tw.stdChartReady {
-		if vc.GenerateStdMacbethColorChart(info) {
+		if tw.viewController.GenerateStdMacbethColorChart(info) {
 			tw.mainWin.messageBox.Append("Successed to generate standard Macbeth color pathc images" + "  :  " + time.Now().Format(time.ANSIC))
 			tw.stdChartReady = true
 		} else {
@@ -79,11 +90,39 @@ func (tw *TopWindow) settingInfoReciever(info *models.SettingInfo) {
 	}
 
 	// generate device Macbeth color charts
-	if vc.GenerateDevMacbethColorChart(info) {
+	if tw.viewController.GenerateDevMacbethColorChart(info) {
 		tw.mainWin.messageBox.Append("Successed to generate device Macbeth color pathc images" + "  :  " + time.Now().Format(time.ANSIC))
 	} else {
 		tw.mainWin.messageBox.Append("Faild to generate device Macbeth color pathc images" + "  :  " + time.Now().Format(time.ANSIC))
 	}
+}
+
+// calculateDeltaE
+func (tw *TopWindow) calculateDeltaE(info *models.SettingInfo) {
+	if info != nil {
+		stdDataPath := info.StdPatchSavePath + info.StdPatchSaveDirName + "/" + std24ColorChartName + ".csv"
+		devDataPath := info.DevPatchSavePath + info.DevPatchSaveDirName + "/" + dev24ColorChartName + ".csv"
+
+		// kvalue definition
+		kvalues := []float64{1.0, 1.0, 1.0}
+
+		if results, ok := tw.viewController.EvaluateDeltaE(stdDataPath, devDataPath, kvalues); ok {
+			if tw.viewController.SaveDeltaEResultData() {
+
+				// output the result to message box
+				tw.mainWin.messageBox.Append("Delta-E Calculation result")
+				for index, data := range results {
+					str := strconv.Itoa(index+1) + " : " + strconv.FormatFloat(data, 'f', 4, 64)
+					tw.mainWin.messageBox.Append(str)
+				}
+			}
+		}
+	}
+}
+
+// optimizeLinearMat
+func (tw *TopWindow) optimizeLinearMat(info *models.SettingInfo) {
+
 }
 
 // message reciever

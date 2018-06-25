@@ -11,8 +11,8 @@ import (
 
 const (
 	nodataImagePath     = "./data/NoDataImage.png"
-	Std24ColorChartName = "std_24_ColorChart"
-	Dev24ColorChartName = "dev_24_ColorChart"
+	std24ColorChartName = "std_24_ColorChart"
+	dev24ColorChartName = "dev_24_ColorChart"
 )
 
 /*
@@ -42,8 +42,8 @@ type MainWindow struct {
 	devImageLoadButton *widgets.QPushButton // image load button for device
 
 	// --- additional action buttons ---
-	reloadElmButton  *widgets.QPushButton // reload linear matrix element
-	showDeltaEButton *widgets.QPushButton // show deltaE
+	calcDeltaEButton *widgets.QPushButton // reload linear matrix element
+	optimizeButton   *widgets.QPushButton // show deltaE
 	saveLogButton    *widgets.QPushButton // save log button
 
 	// --- message box ---
@@ -71,8 +71,8 @@ func NewMainWindow(bus EventBus.Bus) *MainWindow {
 	// button
 	obj.stdImageLoadButton = widgets.NewQPushButton2("Image Load", obj.Cell)
 	obj.devImageLoadButton = widgets.NewQPushButton2("Image Load", obj.Cell)
-	obj.reloadElmButton = widgets.NewQPushButton2("Reload Linear Mat Elm data", obj.Cell)
-	obj.showDeltaEButton = widgets.NewQPushButton2("Calculate Delta-E", obj.Cell)
+	obj.calcDeltaEButton = widgets.NewQPushButton2("Calculate DeltaE", obj.Cell)
+	obj.optimizeButton = widgets.NewQPushButton2("Optimize Linear Matrix", obj.Cell)
 	obj.saveLogButton = widgets.NewQPushButton2("Save Log", obj.Cell)
 
 	// message box setup
@@ -98,34 +98,59 @@ func NewMainWindow(bus EventBus.Bus) *MainWindow {
 	bus.Subscribe("sideWin:settingInfo", obj.settingInfoReciever)
 
 	// action connection
-	// image load buttons
+	// --- image load buttons ---
+
+	// for standard image
 	obj.stdImageLoadButton.ConnectClicked(func(checked bool) {
-		filepath := obj.settingInfo.StdPatchSavePath + obj.settingInfo.StdPatchSaveDirName + "/" + Std24ColorChartName
+		if obj.settingInfo != nil {
+			// file path
+			filepath := obj.settingInfo.StdPatchSavePath + obj.settingInfo.StdPatchSaveDirName + "/" + std24ColorChartName
 
-		obj.reloadImage(filepath, 0.5, StdImageViewer)
-		bus.Publish("main:message", "Standard Macbeth Color Chart was reloded")
+			// load image
+			obj.reloadImage(filepath, 0.5, StdImageViewer)
+			bus.Publish("main:message", "Standard Macbeth Color Chart was reloded")
+
+		} else {
+			bus.Publish("main:message", "Image load error")
+		}
+
 	})
+
+	// for device image
 	obj.devImageLoadButton.ConnectClicked(func(checked bool) {
-		filepath := obj.settingInfo.DevPatchSavePath + obj.settingInfo.DevPatchSaveDirName + "/" + Dev24ColorChartName
+		if obj.settingInfo != nil {
+			// file path
+			filepath := obj.settingInfo.DevPatchSavePath + obj.settingInfo.DevPatchSaveDirName + "/" + dev24ColorChartName
 
-		obj.reloadImage(filepath, 0.5, DevImageViewer)
-		bus.Publish("main:message", "Device Macbeth Color Chart was reloded")
-	})
-
-	// other actions
-	obj.reloadElmButton.ConnectClicked(func(checked bool) {
-		bus.Publish("main:message", "Reload linear matrix element data")
-	})
-	obj.showDeltaEButton.ConnectClicked(func(checked bool) {
-		bus.Publish("main:message", "Show calculated delta E data")
-
-		pathInputDialog := NewTextInputDialog("New Matrix Element Entry", "Path")
-		pathInputDialog.Cell.Show()
-		pathInputDialog.Cell.ConnectAccepted(func() {
-			fmt.Println(pathInputDialog.Cell.TextValue())
-		})
+			// load image
+			obj.reloadImage(filepath, 0.5, DevImageViewer)
+			bus.Publish("main:message", "Device Macbeth Color Chart was reloded")
+		} else {
+			bus.Publish("main:message", "Image load error")
+		}
 
 	})
+
+	// delta-E calculation
+	obj.calcDeltaEButton.ConnectClicked(func(checked bool) {
+		if obj.settingInfo != nil {
+			bus.Publish("main:calculateDeltaE", obj.settingInfo)
+		} else {
+			bus.Publish("main:message", "No target data")
+		}
+	})
+
+	// linear matrix optimization
+	obj.optimizeButton.ConnectClicked(func(checked bool) {
+		if obj.settingInfo != nil {
+			bus.Publish("main:optimizeLinearMat", obj.settingInfo)
+		} else {
+			bus.Publish("main:message", "No target data")
+		}
+
+	})
+
+	// save
 	obj.saveLogButton.ConnectClicked(func(checked bool) {
 		bus.Publish("main:message", "Log Save")
 
@@ -170,8 +195,8 @@ func (mm *MainWindow) setupDevGroup() *widgets.QGroupBox {
 func (mm *MainWindow) setupOptGroup() *widgets.QGroupBox {
 	optGroup := widgets.NewQGroupBox(mm.Cell)
 	optLayout := widgets.NewQHBoxLayout()
-	optLayout.AddWidget(mm.showDeltaEButton, 0, 0)
-	optLayout.AddWidget(mm.reloadElmButton, 0, 0)
+	optLayout.AddWidget(mm.calcDeltaEButton, 0, 0)
+	optLayout.AddWidget(mm.optimizeButton, 0, 0)
 	optLayout.AddWidget(mm.saveLogButton, 0, 0)
 	optGroup.SetLayout(optLayout)
 
