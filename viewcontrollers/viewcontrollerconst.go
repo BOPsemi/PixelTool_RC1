@@ -16,12 +16,18 @@ const (
 )
 
 const (
-	start         int   = 400
-	stop          int   = 700
-	step          int   = 5
-	refPatchNo    int   = 22
-	refPatchLevel uint8 = 122
+	start      int = 400
+	stop       int = 700
+	step       int = 5
+	refPatchNo int = 19 // for response normization
+	//refPatchLevel uint8 = 243
+
+	refPatchNoForWB      int   = 22
+	refPatchNoForWBLevel uint8 = 122
+
+	//refPatchNo      int   = 22
+	//refPatchLevel   uint8 = 122
 
 	//refPatchNo    int   = 19
-	//refPatchLevel uint8 = 243
+	refPatchLevel uint8 = 243
 )

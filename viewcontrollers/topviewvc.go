@@ -4,7 +4,6 @@ import (
 	"PixelTool_RC1/controllers"
 	"PixelTool_RC1/models"
 	"PixelTool_RC1/util"
-	"fmt"
 )
 
 /*
@@ -97,7 +96,7 @@ func (vc *topViewViewController) GenerateDevMacbethColorChart(info *models.Setti
 		// linear matrix calculation
 		if devChartVC.CalculateLinearMatrix(devChartVC.ReadLinearMatrixElmData(info.LinearMatrixDataPath)) {
 			// calculate red and blue gain for white balance
-			redGain, blueGain := devChartVC.CalculateWhiteBalanceGain(refPatchNo)
+			redGain, blueGain := devChartVC.CalculateWhiteBalanceGain(refPatchNoForWB)
 			for index, data := range devChartVC.LinearizedResponseData() {
 
 				// generate patcheds
@@ -151,8 +150,6 @@ func (vc *topViewViewController) SaveDeltaEResultData() bool {
 	// directory handler
 	dirHandler := util.NewDirectoryHandler()
 	savepath := dirHandler.GetCurrentDirectoryPath() + "/data/"
-
-	fmt.Println(savepath)
 
 	if vc.deltaEval.SaveDeltaEResultData(savepath, deltaEReulstFileName) {
 		return true

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"PixelTool_RC1/tools"
 	"PixelTool_RC1/util"
 	"strconv"
 )
@@ -90,7 +91,7 @@ func (dc *deltaEvaluationController) EvaluateDeltaE(refDataPath, compDataPath st
 		data[1]	:Green
 		data[2]	:Blue
 	*/
-	deltaEcalculator := util.NewDeltaLabCalculator()
+	deltaEcalculator := tools.NewDeltaLabCalculator()
 	for index := 0; index < 24; index++ {
 		deltaE := deltaEcalculator.DeltaLab(refData[index], devData[index], kvalues)
 		deltaEResults = append(deltaEResults, deltaE)
