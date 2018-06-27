@@ -3,6 +3,7 @@ package controllers
 import (
 	"PixelTool_RC1/models"
 	"PixelTool_RC1/util"
+	"math"
 	"strconv"
 )
 
@@ -19,74 +20,61 @@ const (
 	macbethColorCheckerFileName = "Macbeth_Color_Checker.csv"
 )
 
-var (
+/*
+ColorChartController :linear matrix optimizer
+*/
+type ColorChartController interface {
+	RunDevice(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64, linearMat []float64) []models.ColorCode
+}
+
+type colorChartController struct {
+	resController ResponseController
+
 	lithSource             models.IlluminationCode  // light source info
 	stdColorCodes          []models.ColorCode       // color code stocker for standar CC
 	devColorCodes          []models.ColorCode       // color code stocker for device CC
+	devResponses           []models.ChannelResponse // original device response
 	rawResponses           []models.ChannelResponse // raw data of channel response
 	rawLinearizedResponses [][]float64              // raw data after linear matrix calculation
 	rawWBData              [][]float64              // raw data after white balance
 	linearMatrixElm        []float64                // linear matrix elemets
 	filepath               map[string]string        // file paths for calculation
-)
-
-func init() {
-	stdColorCodes = make([]models.ColorCode, 0)
-	devColorCodes = make([]models.ColorCode, 0)
-	rawResponses = make([]models.ChannelResponse, 0)
-	rawLinearizedResponses = make([][]float64, 0)
-	rawWBData = make([][]float64, 0)
-	linearMatrixElm = make([]float64, 0)
-	filepath = make(map[string]string, 0)
 }
 
 /*
-ColorChartController :linear matrix optimizer
+NewColorChartController :initializer
 */
-type ColorChartController interface {
-	RunDevice(linearMatDataPath, deviceQEDataPath string, lightSource models.IlluminationCode, initFlag bool, gamma float64, linearMat []float64) []models.ColorCode
-}
-
-type colorChartController struct {
-	resController ResponseController
-}
-
-/*
-NewLinearMatrixOptimizer :initializer
-*/
-func NewLinearMatrixOptimizer() ColorChartController {
+func NewColorChartController() ColorChartController {
 	obj := new(colorChartController)
 
-	// initialize response controller
-	obj.resController = NewResponseController()
+	// initialize properties
+	obj.stdColorCodes = make([]models.ColorCode, 0)
+	obj.devColorCodes = make([]models.ColorCode, 0)
+	obj.rawResponses = make([]models.ChannelResponse, 0)
+	obj.rawLinearizedResponses = make([][]float64, 0)
+	obj.rawWBData = make([][]float64, 0)
+
+	obj.linearMatrixElm = make([]float64, 0)
+	obj.filepath = make(map[string]string, 0)
 
 	return obj
 }
 
-func (cg *colorChartController) RunDevice(linearMatDataPath, deviceQEDataPath string, lightSource models.IlluminationCode, initFlag bool, gamma float64, linearMat []float64) []models.ColorCode {
-	if initFlag {
-		cg.setEnv(linearMatDataPath, deviceQEDataPath, lightSource)
-		cg.resController.ReadResponseData(filepath)
-	}
-
-	return cg.runDevice(gamma, linearMat)
+func (cg *colorChartController) cleanUp() {
+	cg.stdColorCodes = make([]models.ColorCode, 0)
+	cg.devColorCodes = make([]models.ColorCode, 0)
+	cg.rawResponses = make([]models.ChannelResponse, 0)
+	cg.rawLinearizedResponses = make([][]float64, 0)
+	cg.rawWBData = make([][]float64, 0)
 }
 
-/*
-SetEnv	:setup enviroment
-	in	:info
-	out
-*/
-func (cg *colorChartController) setEnv(linearMatDataPath, deviceQEDataPath string, ill models.IlluminationCode) {
-	// light source setup
-	lithSource = ill
+func (cg *colorChartController) RunDevice(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64, linearMat []float64) []models.ColorCode {
 
-	// read Linear Matrix elements
-	linearMatrixElm = cg.readLinearMatElmFromCSV(linearMatDataPath)
+	// setup simulation enviroment
+	cg.setEnv(linearMatDataPath, dataPath, deviceQEDataPath, lightSource)
 
-	// set file path
-	filepath = cg.setReadingFile(deviceQEDataPath)
-
+	// run and retrun result
+	return cg.runDevice(gamma, linearMat)
 }
 
 // read csv
@@ -104,12 +92,17 @@ func (cg *colorChartController) readLinearMatElmFromCSV(filepath string) []float
 }
 
 // setup reading files
-func (cg *colorChartController) setReadingFile(deviceQEpath string) map[string]string {
+func (cg *colorChartController) setReadingFile(dataPath, deviceQEpath string) map[string]string {
 	filepath := make(map[string]string, 0)
 
-	// get current path
-	dirHandler := util.NewDirectoryHandler()
-	path := dirHandler.GetCurrentDirectoryPath() + "/data/"
+	var path string
+	if dataPath == "" {
+		// get current path
+		dirHandler := util.NewDirectoryHandler()
+		path = dirHandler.GetCurrentDirectoryPath() + "/data/"
+	} else {
+		path = dataPath
+	}
 
 	// illumination data path
 	filepath["D65"] = path + illuminationD65FileName
@@ -122,26 +115,90 @@ func (cg *colorChartController) setReadingFile(deviceQEpath string) map[string]s
 	return filepath
 }
 
+/*
+SetEnv	:setup enviroment
+	in	:info
+	out
+*/
+func (cg *colorChartController) setEnv(linearMatDataPath, dataPath, deviceQEDataPath string, ill models.IlluminationCode) {
+	// initalize response controller
+	cg.resController = NewResponseController()
+
+	// light source setup
+	cg.lithSource = ill
+
+	// read Linear Matrix elements
+	cg.linearMatrixElm = cg.readLinearMatElmFromCSV(linearMatDataPath)
+
+	// set file path
+	cg.filepath = cg.setReadingFile(dataPath, deviceQEDataPath)
+
+	// read filepath
+	cg.resController.ReadResponseData(cg.filepath)
+
+	// clean up
+	cg.cleanUp()
+
+}
+
 // calculate device response
-func (cg *colorChartController) calculateDeviceResponse(gamma float64) {
+func (cg *colorChartController) calculateDeviceResponse(gamma float64) bool {
+
+	if cg.resController == nil {
+		return false
+	}
+
 	if ok, responses := cg.resController.CalculateChannelResponse(
-		lithSource,
+		cg.lithSource,
 		start,
 		stop,
 		step,
 		refPathNo,
 	); ok {
+
+		// update
+		cg.devResponses = responses
+
+		// gamma
 		for _, data := range responses {
 			if status, result := cg.resController.CalculateGammaCorrection(gamma, &data); status {
-				rawResponses = append(rawResponses, *result)
+				cg.rawResponses = append(cg.rawResponses, *result)
 			}
 		}
 	}
+
+	// check result
+	if len(cg.devResponses) == 0 {
+		return false
+	}
+	if len(cg.rawResponses) == 0 {
+		return false
+	}
+
+	return true
 }
 
 // calculate linear matrix
-func (cg *colorChartController) calculateLinearMatrix(linerMat []float64) {
-	for _, data := range rawResponses {
+func (cg *colorChartController) calculateLinearMatrix(linerMat []float64) bool {
+	/*
+		for _, data := range cg.rawResponses {
+			// change data format to linear matrix calculation
+			grgbrb := []float64{
+				data.Gr,
+				data.Gb,
+				data.R,
+				data.B,
+			}
+
+			// calcualte linear matrix
+			response := cg.resController.CalculateLinearMatrix(linerMat, grgbrb)
+
+			// stock
+			cg.rawLinearizedResponses = append(cg.rawLinearizedResponses, response)
+		}
+	*/
+
+	for _, data := range cg.devResponses {
 		// change data format to linear matrix calculation
 		grgbrb := []float64{
 			data.Gr,
@@ -154,14 +211,22 @@ func (cg *colorChartController) calculateLinearMatrix(linerMat []float64) {
 		response := cg.resController.CalculateLinearMatrix(linerMat, grgbrb)
 
 		// stock
-		rawLinearizedResponses = append(rawLinearizedResponses, response)
+		cg.rawLinearizedResponses = append(cg.rawLinearizedResponses, response)
 	}
+
+	// check
+	if len(cg.rawLinearizedResponses) == 0 {
+		return false
+	}
+
+	return true
+
 }
 
 // calculate white balance
-func (cg *colorChartController) calculateWhiteBalance(wbRefPatchNo int) {
-	redGain, blueGain := cg.resController.CalculateWhiteBalanceGain(rawLinearizedResponses[wbRefPatchNo-1])
-	for _, data := range rawLinearizedResponses {
+func (cg *colorChartController) calculateWhiteBalance(wbRefPatchNo int) bool {
+	redGain, blueGain := cg.resController.CalculateWhiteBalanceGain(cg.rawLinearizedResponses[wbRefPatchNo-1])
+	for _, data := range cg.rawLinearizedResponses {
 
 		// calculate raw data
 		red := data[0] * redGain
@@ -170,18 +235,60 @@ func (cg *colorChartController) calculateWhiteBalance(wbRefPatchNo int) {
 
 		// make raw data
 		rawdata := []float64{red, green, blue}
-		rawWBData = append(rawWBData, rawdata)
+		cg.rawWBData = append(cg.rawWBData, rawdata)
 
 	}
 
+	// check
+	if len(cg.rawWBData) == 0 {
+		return false
+	}
+
+	return true
+}
+
+// calculate gamma correlection
+func (cg *colorChartController) calculateGammaCorrection(gamma float64) bool {
+
+	powFunc := func(base, gamma float64) float64 {
+		return math.Pow(base, gamma)
+	}
+
+	// stocker
+	results := make([][]float64, 0)
+
+	// calculate gamma correction
+	for _, data := range cg.rawWBData {
+		/*
+			Red		:data[0]
+			Green 	:data[1]
+			Blue	:data[2]
+		*/
+		red := powFunc(data[0], gamma)
+		green := powFunc(data[1], gamma)
+		blue := powFunc(data[2], gamma)
+
+		// stock the result
+		results = append(results, []float64{red, green, blue})
+	}
+
+	// update
+	cg.rawWBData = results
+
+	// check
+	if len(cg.rawWBData) == 0 {
+		return false
+	}
+
+	return true
 }
 
 // convert 8bit data
-func (cg *colorChartController) convert8BitData() {
+func (cg *colorChartController) convert8BitData() bool {
 	// init degitizer
 	digitizer := util.NewDigitizer()
 
-	for index, data := range rawWBData {
+	for index, data := range cg.rawWBData {
 		red8bit := digitizer.D8bitDigitizeData(data[0], refPatchLevel)
 		green8bit := digitizer.D8bitDigitizeData(data[1], refPatchLevel)
 		blue8bit := digitizer.D8bitDigitizeData(data[2], refPatchLevel)
@@ -193,28 +300,42 @@ func (cg *colorChartController) convert8BitData() {
 		colorcode := models.SetColorCode(index+1, pname, red8bit, green8bit, blue8bit, 255)
 
 		// update
-		devColorCodes = append(devColorCodes, *colorcode)
+		cg.devColorCodes = append(cg.devColorCodes, *colorcode)
 	}
+
+	// check
+	if len(cg.devColorCodes) == 0 {
+		return false
+	}
+
+	return true
 }
 
 func (cg *colorChartController) runDevice(gamma float64, linearMat []float64) []models.ColorCode {
 
-	// --- 2nd stage ---
+	// --- 1st stage ---
 	// calculate device response
 	cg.calculateDeviceResponse(gamma)
 
-	// --- 3rd stage ---
+	// --- 2nd stage ---
 	// calculate linear matrix
-	cg.calculateLinearMatrix(linearMat)
+	if len(linearMat) == 0 {
+		cg.calculateLinearMatrix(cg.linearMatrixElm)
+	} else {
+		cg.calculateLinearMatrix(linearMat)
+	}
 
-	// --- 4th stage ---
+	// --- 3rd stage ---
 	// white balance
 	cg.calculateWhiteBalance(refPathNoForWB)
+
+	// --- 4th stage ---
+	// gamma correction
+	cg.calculateGammaCorrection(gamma)
 
 	// --- 5th stage ---
 	// degitize
 	cg.convert8BitData()
 
-	return devColorCodes
-
+	return cg.devColorCodes
 }
