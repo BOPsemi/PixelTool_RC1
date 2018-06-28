@@ -134,8 +134,44 @@ func Test_RunDevice(t *testing.T) {
 		[]float64{},
 	)
 
+	// --- print --
 	for _, data := range results {
 		fmt.Println(data)
 	}
+}
 
+func Test_RunStandard(t *testing.T) {
+	obj := NewColorChartController()
+
+	path := "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/std_color_patch.csv"
+	results := obj.RunStandad(path)
+
+	assert.NotEqual(t, 0, len(results))
+
+	// --- print --
+	for _, data := range results {
+		fmt.Println(data)
+	}
+}
+
+func Test_GenerateColorPatchImage(t *testing.T) {
+	obj := NewColorChartController()
+
+	path := "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/std_color_patch.csv"
+	savePath := "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/"
+
+	results := obj.RunStandad(path)
+	assert.True(t, obj.GenerateColorPatchImage(results, savePath, "std_patch", 100, 100))
+	assert.True(t, obj.Generate24MacbethColorChart(false, savePath+"/std_patch/"))
+}
+
+func Test_SaveColorPatchCSVData(t *testing.T) {
+	obj := NewColorChartController()
+
+	path := "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/std_color_patch.csv"
+	savePath := "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/std_patch/"
+
+	results := obj.RunStandad(path)
+
+	assert.True(t, obj.SaveColorPatchCSVData(results, savePath, std24ColorChartName))
 }

@@ -18,6 +18,8 @@ const (
 	illuminationD65FileName     = "illumination_D65.csv"
 	illuminationIllAFileName    = "illumination_A.csv"
 	macbethColorCheckerFileName = "Macbeth_Color_Checker.csv"
+	std24ColorChartName         = "std_24_ColorChart"
+	dev24ColorChartName         = "dev_24_ColorChart"
 )
 
 /*
@@ -25,6 +27,11 @@ ColorChartController :linear matrix optimizer
 */
 type ColorChartController interface {
 	RunDevice(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64, linearMat []float64) []models.ColorCode
+	RunStandad(filepath string) []models.ColorCode
+
+	GenerateColorPatchImage(data []models.ColorCode, filesavepath, dirname string, width, height int) bool
+	Generate24MacbethColorChart(dev bool, filesavepath string) bool
+	SaveColorPatchCSVData(data []models.ColorCode, savepath, filename string) bool
 }
 
 type colorChartController struct {
@@ -338,4 +345,92 @@ func (cg *colorChartController) runDevice(gamma float64, linearMat []float64) []
 	cg.convert8BitData()
 
 	return cg.devColorCodes
+}
+
+/*
+GenerateColorPatchImage
+	in	:data []models.ColorCode, filesavepath, dirname string, width, height int
+	out	:bool
+*/
+func (cg *colorChartController) GenerateColorPatchImage(data []models.ColorCode, filesavepath, dirname string, width, height int) bool {
+
+	// initialize image controller
+	imgcontroller := NewImageController()
+
+	// initialize directory handler
+	dirhandler := util.NewDirectoryHandler()
+	dirhandler.MakeDirectory(filesavepath, dirname)
+
+	// create path string for file save
+	path := filesavepath + dirname + "/"
+
+	// initalize IO handler
+	iohandler := util.NewIOUtil()
+
+	// generate color patches
+	for _, rawdata := range data {
+		rawimage := imgcontroller.CreateSolidImage(*rawdata.GenerateColorRGBA(), height, width)
+		if !iohandler.StreamOutPNGFile(path, rawdata.GetName(), rawimage) {
+			break
+		}
+	}
+
+	// return
+	return true
+}
+
+/*
+Generate24MacbethColorChart
+	in	:dev bool, filesavepath string
+	out	:bool
+*/
+func (cg *colorChartController) Generate24MacbethColorChart(dev bool, filesavepath string) bool {
+	imageContrller := NewImageController()
+	var fileName string
+	if dev {
+		fileName = dev24ColorChartName
+	} else {
+		fileName = std24ColorChartName
+	}
+
+	// create 24 Macbeth Chart image
+	if !imageContrller.Create24MacbethChart(filesavepath, fileName) {
+		return false
+	}
+
+	return true
+}
+
+/*
+RunStandad
+	in	:filepath string
+	out	:[]models.ColorCode
+*/
+func (cg *colorChartController) RunStandad(filepath string) []models.ColorCode {
+	return models.ReadColorCode(filepath)
+}
+
+/*
+SaveColorPatchCSVData
+	in	:savepath, filenam string
+	out	:bool
+*/
+func (cg *colorChartController) SaveColorPatchCSVData(data []models.ColorCode, savepath, filename string) bool {
+	// data stcoker
+	dataArray := make([][]string, 0)
+
+	// serialize data
+	for _, rawdata := range data {
+		str := rawdata.SerializeData()
+		dataArray = append(dataArray, str)
+	}
+
+	// save file as CSV file
+	iohandler := util.NewIOUtil()
+	if !iohandler.WriteCSVFile(savepath, filename, dataArray) {
+		return false
+	}
+
+	// return
+	return true
 }

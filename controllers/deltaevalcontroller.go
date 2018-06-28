@@ -7,7 +7,7 @@ import (
 )
 
 /*
-DeltaEvalController :delta-E evaluation controller
+DeltaEvaluationController :delta-E evaluation controller
 */
 type DeltaEvaluationController interface {
 	EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool)
