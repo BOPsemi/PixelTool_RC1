@@ -77,23 +77,23 @@ func NewTopWindow(bus EventBus.Bus) *TopWindow {
 // Setting Infor reciever
 func (tw *TopWindow) settingInfoReciever(info *models.SettingInfo) {
 	// initalize view controller
-	//vc := viewcontrollers.NewTopViewViewController()
+	vc := viewcontrollers.NewTopViewViewController()
 
-	// generate standard Macbeth color charts
+	// make Standard Macbeth patch
 	if !tw.stdChartReady {
-		if tw.viewController.GenerateStdMacbethColorChart(info) {
-			tw.mainWin.messageBox.Append("Successed to generate standard Macbeth color pathc images" + "  :  " + time.Now().Format(time.ANSIC))
+		if vc.GenerateMacbethColorChart(false, info) {
+			tw.mainWin.messageBox.Append("Successed to generate standard Macbeth color patch images" + "  :  " + time.Now().Format(time.ANSIC))
 			tw.stdChartReady = true
 		} else {
-			tw.mainWin.messageBox.Append("Faild to generate standard Macbeth color pathc images" + "  :  " + time.Now().Format(time.ANSIC))
+			tw.mainWin.messageBox.Append("Faild to generate standard Macbeth color patch images" + "  :  " + time.Now().Format(time.ANSIC))
 		}
 	}
 
-	// generate device Macbeth color charts
-	if tw.viewController.GenerateDevMacbethColorChart(info) {
-		tw.mainWin.messageBox.Append("Successed to generate device Macbeth color pathc images" + "  :  " + time.Now().Format(time.ANSIC))
+	// make Device Macbeth patch
+	if vc.GenerateMacbethColorChart(true, info) {
+		tw.mainWin.messageBox.Append("Successed to generate device Macbeth color patch images" + "  :  " + time.Now().Format(time.ANSIC))
 	} else {
-		tw.mainWin.messageBox.Append("Faild to generate device Macbeth color pathc images" + "  :  " + time.Now().Format(time.ANSIC))
+		tw.mainWin.messageBox.Append("Faild to generate device Macbeth color patch images" + "  :  " + time.Now().Format(time.ANSIC))
 	}
 }
 

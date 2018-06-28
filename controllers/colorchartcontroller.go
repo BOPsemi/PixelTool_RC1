@@ -155,6 +155,7 @@ func (cg *colorChartController) calculateDeviceResponse(gamma float64) bool {
 		return false
 	}
 
+	// calculate channel response
 	if ok, responses := cg.resController.CalculateChannelResponse(
 		cg.lithSource,
 		start,
@@ -327,8 +328,10 @@ func (cg *colorChartController) runDevice(gamma float64, linearMat []float64) []
 	// --- 2nd stage ---
 	// calculate linear matrix
 	if len(linearMat) == 0 {
+		// use outside csv file
 		cg.calculateLinearMatrix(cg.linearMatrixElm)
 	} else {
+		// use inputted linear matrix elements
 		cg.calculateLinearMatrix(linearMat)
 	}
 

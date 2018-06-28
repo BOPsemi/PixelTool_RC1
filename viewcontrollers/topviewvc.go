@@ -13,6 +13,8 @@ type TopViewViewController interface {
 	GenerateStdMacbethColorChart(info *models.SettingInfo) bool
 	GenerateDevMacbethColorChart(info *models.SettingInfo) bool
 
+	GenerateMacbethColorChart(dev bool, info *models.SettingInfo) bool
+
 	EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool)
 	SaveDeltaEResultData() bool
 }
@@ -156,4 +158,112 @@ func (vc *topViewViewController) SaveDeltaEResultData() bool {
 	}
 
 	return false
+}
+
+/*
+GenerateMacbethColorChart
+	in	:dev bool, info *models.SettingInfo
+	out	:bool
+*/
+func (vc *topViewViewController) GenerateMacbethColorChart(dev bool, info *models.SettingInfo) bool {
+	// initalize color chart controller
+	cccontroller := controllers.NewColorChartController()
+
+	// initalize dir handler
+	dirhandler := util.NewDirectoryHandler()
+
+	// --- make csv file path
+	path := dirhandler.GetCurrentDirectoryPath()
+	datapath := path + "/data/"
+	filepath := datapath + macbethColorChartCodeFileName
+
+	if dev {
+		// device
+
+		// --- Light source identification ---
+		var lightSource models.IlluminationCode
+		switch info.LightSource {
+		case "D65":
+			lightSource = models.D65
+		case "IllA":
+			lightSource = models.IllA
+		default:
+			lightSource = models.D65
+		}
+
+		// --- calculte response ---
+		data := cccontroller.RunDevice(
+			info.LinearMatrixDataPath,
+			datapath,
+			info.DeiceQEDataPath,
+			lightSource,
+			info.Gamma,
+			[]float64{},
+		)
+
+		// --- generate color path ---
+		if !cccontroller.GenerateColorPatchImage(
+			data,
+			info.DevPatchSavePath,
+			info.DevPatchSaveDirName,
+			info.PatchSize.H,
+			info.PatchSize.V,
+		) {
+			return false
+		}
+
+		// --- generate 24 Macbeth patch chart ----
+		if !cccontroller.Generate24MacbethColorChart(
+			true,
+			info.DevPatchSavePath+info.DevPatchSaveDirName+"/",
+		) {
+			return false
+		}
+
+		// --- save csv file ---
+
+		if !cccontroller.SaveColorPatchCSVData(
+			data,
+			info.DevPatchSavePath+info.DevPatchSaveDirName+"/",
+			dev24ColorChartName,
+		) {
+			return false
+		}
+
+	} else {
+		// standard
+
+		// --- get color code ---
+		data := cccontroller.RunStandad(filepath)
+
+		// --- generate color path ---
+		if !cccontroller.GenerateColorPatchImage(
+			data,
+			info.StdPatchSavePath,
+			info.StdPatchSaveDirName,
+			info.PatchSize.H,
+			info.PatchSize.V,
+		) {
+			return false
+		}
+
+		// --- generate 24 Macbeth patch chart ----
+		if !cccontroller.Generate24MacbethColorChart(
+			false,
+			info.StdPatchSavePath+info.StdPatchSaveDirName+"/",
+		) {
+			return false
+		}
+
+		// --- save csv file ---
+		if !cccontroller.SaveColorPatchCSVData(
+			data,
+			info.StdPatchSavePath+info.StdPatchSaveDirName+"/",
+			std24ColorChartName,
+		) {
+			return false
+		}
+	}
+
+	return true
 }
