@@ -10,13 +10,19 @@ import (
 DeltaEvaluationController :delta-E evaluation controller
 */
 type DeltaEvaluationController interface {
-	EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool)
+	SetData(refDataPath, compDataPath string) bool
+	CalculateDeltaE(ref, comp [][]float64, kvalues []float64) ([]float64, float64)
+	RunDeltaEEvaluation(refData, compData [][]float64, kvalues []float64) ([]float64, float64)
+
 	SaveDeltaEResultData(savepath, filename string) bool
 }
 
 // structure
 type deltaEvaluationController struct {
 	deltaEResults []float64
+
+	refData  [][]float64 // reference data
+	compData [][]float64 // comp data
 }
 
 /*
@@ -26,86 +32,118 @@ func NewDeltaEvaluationController() DeltaEvaluationController {
 	obj := new(deltaEvaluationController)
 
 	obj.deltaEResults = make([]float64, 0)
+	obj.refData = make([][]float64, 0)
+	obj.compData = make([][]float64, 0)
 
 	return obj
 }
 
-/*
-EvaluateDeltaE
-	in	:refDataPath, compDataPath string, kvalues []float64
-	out	:bool
-*/
-func (dc *deltaEvaluationController) EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool) {
-	status := false
+func (dc *deltaEvaluationController) makeDataArray(rawdata [][]string) [][]float64 {
+	// buffer
+	var convertedData [][]float64
 
-	// io handler
-	ioHandler := util.NewIOUtil()
+	for _, patch := range rawdata {
+		// buffer data
+		eachPatchData := make([]float64, 0)
 
-	// data buffer
-	refData := make([][]float64, 0)
-	devData := make([][]float64, 0)
-	deltaEResults := make([]float64, 0)
-
-	// data array extractor
-	makeDataArray := func(rawdata [][]string) [][]float64 {
-		// buffer
-		var convertedData [][]float64
-
-		for _, patch := range rawdata {
-			// buffer data
-			eachPatchData := make([]float64, 0)
-
-			// extract data and convert data
-			for index, data := range patch {
-				if index > 1 && index < 5 {
-					value, err := strconv.ParseFloat(data, 64)
-					if err == nil {
-						eachPatchData = append(eachPatchData, value)
-					}
+		// extract data and convert data
+		for index, data := range patch {
+			if index > 1 && index < 5 {
+				value, err := strconv.ParseFloat(data, 64)
+				if err == nil {
+					eachPatchData = append(eachPatchData, value)
 				}
 			}
-			// update each patch data to ref data
-			convertedData = append(convertedData, eachPatchData)
 		}
-		// return the converted data
-		return convertedData
+		// update each patch data to ref data
+		convertedData = append(convertedData, eachPatchData)
+	}
+	// return the converted data
+	return convertedData
+}
+
+/*
+SetData
+	in	:refDataPath, compDataPath string
+	out	:bool
+*/
+func (dc *deltaEvaluationController) SetData(refDataPath, compDataPath string) bool {
+	// check data path
+	if refDataPath == "" || compDataPath == "" {
+		return false
 	}
 
-	// open reference csv file
-	if refPatchRawData, ok := ioHandler.ReadCSVFile(refDataPath); ok {
-		refData = makeDataArray(refPatchRawData)
+	// read csv file
+	iohandler := util.NewIOUtil()
+	if refData, ok := iohandler.ReadCSVFile(refDataPath); ok {
+		dc.refData = dc.makeDataArray(refData)
 	} else {
-		return deltaEResults, status
+		return false
 	}
-
-	// open dev csv file
-	if devPatchRawData, ok := ioHandler.ReadCSVFile(compDataPath); ok {
-		devData = makeDataArray(devPatchRawData)
+	if compData, ok := iohandler.ReadCSVFile(compDataPath); ok {
+		dc.compData = dc.makeDataArray(compData)
 	} else {
-		return deltaEResults, status
+		return false
 	}
 
-	/*
-		calculate deltaE
-		data[0]	:Red
-		data[1]	:Green
-		data[2]	:Blue
-	*/
-	deltaEcalculator := tools.NewDeltaLabCalculator()
+	// return
+	return true
+
+}
+
+/*
+RunDeltaEEvaluation
+	in	:refData, compData [][]float64, kvalues []float64
+	out	:[]float64, float64
+*/
+func (dc *deltaEvaluationController) RunDeltaEEvaluation(refData, compData [][]float64, kvalues []float64) ([]float64, float64) {
+	var (
+		ref  [][]float64
+		comp [][]float64
+	)
+
+	// default value
+	if len(refData)*len(compData) == 0 {
+		ref = dc.refData
+		comp = dc.compData
+	}
+
+	// calculate deltaE
+	results, average := dc.CalculateDeltaE(ref, comp, kvalues)
+
+	// return results and average
+	return results, average
+}
+
+/*
+CalculateDeltaE
+	in	:ref, comp [][]float64, kvalues []float64
+	out	;[]float64, float64
+*/
+func (dc *deltaEvaluationController) CalculateDeltaE(ref, comp [][]float64, kvalues []float64) ([]float64, float64) {
+	results := make([]float64, 0)
+
+	// initialize deltaE calculator
+	calculator := tools.NewDeltaLabCalculator()
+
+	// calculate deltaE
+	var sum float64
 	for index := 0; index < 24; index++ {
-		deltaE := deltaEcalculator.DeltaLab(refData[index], devData[index], kvalues)
-		deltaEResults = append(deltaEResults, deltaE)
+		result := calculator.DeltaLab(ref[index], comp[index], kvalues)
+		sum += result
+
+		// stock the result
+		results = append(results, result)
 	}
 
-	if len(deltaEResults) == 0 {
-		return deltaEResults, status
-	}
+	// average
+	deltaEAve := sum / 24.0
 
-	// update status
-	status = true
-	dc.deltaEResults = deltaEResults
+	// update
+	dc.deltaEResults = results
 
-	return deltaEResults, status
+	// return
+	return results, deltaEAve
 }
 
 /*
