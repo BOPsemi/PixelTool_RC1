@@ -28,6 +28,7 @@ ColorChartController :linear matrix optimizer
 type ColorChartController interface {
 	RunDevice(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64, linearMat []float64) []models.ColorCode
 	RunStandad(filepath string) []models.ColorCode
+	RunDeiceBatch(gamma float64, linearMat []float64) []models.ColorCode
 
 	GenerateColorPatchImage(data []models.ColorCode, filesavepath, dirname string, width, height int) bool
 	Generate24MacbethColorChart(dev bool, filesavepath string) bool
@@ -81,6 +82,11 @@ func (cg *colorChartController) RunDevice(linearMatDataPath, dataPath, deviceQED
 	cg.setEnv(linearMatDataPath, dataPath, deviceQEDataPath, lightSource)
 
 	// run and retrun result
+	return cg.runDevice(gamma, linearMat)
+}
+
+func (cg *colorChartController) RunDeiceBatch(gamma float64, linearMat []float64) []models.ColorCode {
+	cg.cleanUp()
 	return cg.runDevice(gamma, linearMat)
 }
 

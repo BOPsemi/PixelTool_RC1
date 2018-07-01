@@ -28,22 +28,23 @@ func Test_ReadWhitePoint(t *testing.T) {
 func Test_SpaceChangeRGBtoXYZ(t *testing.T) {
 	obj := NewColorSpaceChange()
 	if obj.ReadWhitePoint(PATH) {
-		rgb := []float64{1.0, 0.0, 0.0}
+		rgb := []float64{100.0 / 255.0, 52.0 / 255.0, 52.0 / 255.0}
 
 		// SRGB
 		xyz := obj.SpaceChangeRGBtoXYZ(models.SRGB, rgb)
 		lab := obj.SpaceChangeXYZtoLab(models.SRGB, xyz)
 		fmt.Println(lab)
+		/*
+			// CIE
+			xyz = obj.SpaceChangeRGBtoXYZ(models.CIE, rgb)
+			lab = obj.SpaceChangeXYZtoLab(models.CIE, xyz)
+			fmt.Println(lab)
 
-		// CIW
-		xyz = obj.SpaceChangeRGBtoXYZ(models.CIE, rgb)
-		lab = obj.SpaceChangeXYZtoLab(models.CIE, xyz)
-		fmt.Println(lab)
-
-		// NTSC
-		xyz = obj.SpaceChangeRGBtoXYZ(models.NTSC, rgb)
-		lab = obj.SpaceChangeXYZtoLab(models.NTSC, xyz)
-		fmt.Println(lab)
+			// NTSC
+			xyz = obj.SpaceChangeRGBtoXYZ(models.NTSC, rgb)
+			lab = obj.SpaceChangeXYZtoLab(models.NTSC, xyz)
+			fmt.Println(lab)
+		*/
 	}
 
 }

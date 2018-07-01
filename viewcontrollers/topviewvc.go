@@ -12,7 +12,7 @@ TopViewViewController :
 type TopViewViewController interface {
 	GenerateMacbethColorChart(dev bool, info *models.SettingInfo) bool
 
-	EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool)
+	EvaluateDeltaE(colorSpace models.ColorSpace, refDataPath, compDataPath string, kvalues []float64) ([]float64, bool)
 	SaveDeltaEResultData() bool
 }
 
@@ -37,14 +37,14 @@ EvaluateDeltaE
 	in	:refDataPath, compDataPath string, kvalues []float64
 	out	:bool
 */
-func (vc *topViewViewController) EvaluateDeltaE(refDataPath, compDataPath string, kvalues []float64) ([]float64, bool) {
+func (vc *topViewViewController) EvaluateDeltaE(colorSpace models.ColorSpace, refDataPath, compDataPath string, kvalues []float64) ([]float64, bool) {
 	// --- Stage 1 ---
 	// set Data
 	vc.deltaEval.SetData(refDataPath, compDataPath)
 
 	// --- Stage 2 ---
 	// calculate
-	results, _ := vc.deltaEval.RunDeltaEEvaluation([][]float64{}, [][]float64{}, kvalues)
+	results, _ := vc.deltaEval.RunDeltaEEvaluation(models.SRGB, [][]float64{}, [][]float64{}, kvalues)
 
 	// --- Stage 3 ---
 	// check

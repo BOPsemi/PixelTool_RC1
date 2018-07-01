@@ -106,7 +106,7 @@ func (tw *TopWindow) calculateDeltaE(info *models.SettingInfo) {
 		// kvalue definition
 		kvalues := []float64{1.0, 1.0, 1.0}
 
-		if results, ok := tw.viewController.EvaluateDeltaE(stdDataPath, devDataPath, kvalues); ok {
+		if results, ok := tw.viewController.EvaluateDeltaE(models.SRGB, stdDataPath, devDataPath, kvalues); ok {
 			if tw.viewController.SaveDeltaEResultData() {
 
 				// output the result to message box

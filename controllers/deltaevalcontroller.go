@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"PixelTool_RC1/models"
 	"PixelTool_RC1/tools"
 	"PixelTool_RC1/util"
 	"strconv"
@@ -11,8 +12,9 @@ DeltaEvaluationController :delta-E evaluation controller
 */
 type DeltaEvaluationController interface {
 	SetData(refDataPath, compDataPath string) bool
+	RGBtoLabConversion(colorSpace models.ColorSpace, rgb []float64) []float64
 	CalculateDeltaE(ref, comp [][]float64, kvalues []float64) ([]float64, float64)
-	RunDeltaEEvaluation(refData, compData [][]float64, kvalues []float64) ([]float64, float64)
+	RunDeltaEEvaluation(colorSpace models.ColorSpace, refData, compData [][]float64, kvalues []float64) ([]float64, float64)
 
 	SaveDeltaEResultData(savepath, filename string) bool
 }
@@ -88,7 +90,30 @@ func (dc *deltaEvaluationController) SetData(refDataPath, compDataPath string) b
 
 	// return
 	return true
+}
 
+/*
+RGBtoLabConversion
+	in	:
+*/
+func (dc *deltaEvaluationController) RGBtoLabConversion(colorSpace models.ColorSpace, rgb []float64) []float64 {
+
+	spaceChanger := NewColorSpaceChange()
+
+	// whitpoint file path
+	dirhandler := util.NewDirectoryHandler()
+	path := dirhandler.GetCurrentDirectoryPath() + "/json/whitepoint.json"
+
+	// set white point
+	if !spaceChanger.ReadWhitePoint(path) {
+		return []float64{}
+	}
+
+	// calculate
+	xyz := spaceChanger.SpaceChangeRGBtoXYZ(colorSpace, rgb)
+	lab := spaceChanger.SpaceChangeXYZtoLab(colorSpace, xyz)
+
+	return lab
 }
 
 /*
@@ -96,7 +121,7 @@ RunDeltaEEvaluation
 	in	:refData, compData [][]float64, kvalues []float64
 	out	:[]float64, float64
 */
-func (dc *deltaEvaluationController) RunDeltaEEvaluation(refData, compData [][]float64, kvalues []float64) ([]float64, float64) {
+func (dc *deltaEvaluationController) RunDeltaEEvaluation(colorSpace models.ColorSpace, refData, compData [][]float64, kvalues []float64) ([]float64, float64) {
 	var (
 		ref  [][]float64
 		comp [][]float64
@@ -108,8 +133,30 @@ func (dc *deltaEvaluationController) RunDeltaEEvaluation(refData, compData [][]f
 		comp = dc.compData
 	}
 
+	// RGBtoLab Conversion
+	convertRGBtoLab := func(data [][]float64) [][]float64 {
+		labs := make([][]float64, 0)
+
+		for _, rgb := range data {
+
+			// r / 255.0
+			rgbNorm := make([]float64, 0)
+			for _, signal := range rgb {
+				rgbNorm = append(rgbNorm, signal/255.0)
+			}
+
+			lab := dc.RGBtoLabConversion(colorSpace, rgbNorm)
+			labs = append(labs, lab)
+		}
+
+		return labs
+	}
+
+	refLabs := convertRGBtoLab(ref)
+	compLabs := convertRGBtoLab(comp)
+
 	// calculate deltaE
-	results, average := dc.CalculateDeltaE(ref, comp, kvalues)
+	results, average := dc.CalculateDeltaE(refLabs, compLabs, kvalues)
 
 	// return results and average
 	return results, average
