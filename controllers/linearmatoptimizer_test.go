@@ -48,6 +48,6 @@ func Test_Run(t *testing.T) {
 	linearMatElm := []float64{0.336, 0.031, 0.024, 0.063, 0.041, 0.857}
 
 	// run
-	obj.Run(0, 5, linearMatElm)
+	obj.Run(5, linearMatElm)
 
 }
