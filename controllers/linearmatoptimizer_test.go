@@ -45,9 +45,9 @@ func Test_Run(t *testing.T) {
 	obj.SetRefColorCode(refCCPath)
 
 	// make linear matrix
-	linearMatElm := []float64{0.336, 0.031, 0.024, 0.063, 0.041, 0.857}
+	linearMatElm := []float64{0.136, 0.031, 0.024, 0.063, 0.041, 0.657}
 
 	// run
-	obj.Run(5, linearMatElm)
+	obj.Run(100, 5, linearMatElm)
 
 }

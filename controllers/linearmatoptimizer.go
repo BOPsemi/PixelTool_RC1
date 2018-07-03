@@ -17,23 +17,12 @@ type DataSet struct {
 }
 
 /*
-VariableSet :var set
-*/
-type VariableSet struct {
-	Index     int
-	InitValue float64 // initial value
-	MaxValue  float64 // sweep stop value
-	MinValue  float64 // min value
-	Variables []float64
-}
-
-/*
 LinearMatrixOptimizer :linear mat optimizer
 */
 type LinearMatrixOptimizer interface {
 	SetEnv(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64) bool
 	SetRefColorCode(filepath string) bool
-	Run(trial int, linearMatElm []float64)
+	Run(splitNum, trial int, linearMatElm []float64)
 }
 
 //
@@ -91,7 +80,8 @@ func (lo *linearMatrixOptimizer) SetEnv(linearMatDataPath, dataPath, deviceQEDat
 SetRefColorCode
 */
 func (lo *linearMatrixOptimizer) SetRefColorCode(filepath string) bool {
-	lo.refColorCode = lo.colorChartController.RunStandad(filepath)
+	ccController := NewColorChartController()
+	lo.refColorCode = ccController.RunStandad(filepath)
 
 	if len(lo.refColorCode) == 0 {
 		return false
@@ -100,7 +90,9 @@ func (lo *linearMatrixOptimizer) SetRefColorCode(filepath string) bool {
 	return true
 }
 
-func (lo *linearMatrixOptimizer) makeVariableSet(elm []float64) {
+func (lo *linearMatrixOptimizer) makeVariableSet(splitNum int, elm []float64) [][]float64 {
+	varDataSet := make([][]float64, 0)
+
 	for pos := 0; pos < len(elm); pos++ {
 
 		// calculate parameter sweep
@@ -113,98 +105,54 @@ func (lo *linearMatrixOptimizer) makeVariableSet(elm []float64) {
 		if targetMinValue < 0.0 {
 			targetMinValue = 0.0
 		}
-		step := (targetMaxValue - targetMinValue) / 100.0
 
-		// set initial value
-		variable := targetMinValue
+		// calculate min value and step
+		variables := targetMinValue
+		step := (targetMaxValue - targetMinValue) / float64(splitNum)
 
-		// make variable set
-		for j := 0; j < 100; j++ {
-			// stocker
-			stocker := elm
+		for index := 0; index < splitNum; index++ {
 
-			// calculate new value
-			variable += step
+			// make stocker
+			stocker := make([]float64, len(elm))
+			copy(stocker, elm)
 
-			// upfate slice
-			stocker = append(stocker[:pos+1], stocker[pos:]...)
-			stocker[pos] = variable
+			variables += step
+			stocker[pos] = variables
 
-			fmt.Println(stocker)
-		}
-	}
-}
-
-/*
-MakeDataSet :
-*/
-func (lo *linearMatrixOptimizer) makeVariable(paramIndex int, elm []float64) *VariableSet {
-	parameters := make([]float64, 0)
-	/*
-		0 :a
-		1 :b
-		2 :c
-		3 :d
-		4 :e
-		5 :f
-	*/
-
-	// skip the element if the index matched to paraIndex
-	for index, data := range elm {
-		if index != paramIndex {
-			parameters = append(parameters, data)
+			//fmt.Println(stocker)
+			varDataSet = append(varDataSet, stocker)
 		}
 	}
 
-	// make variable data set
-	varSet := new(VariableSet)
-	varSet.Index = paramIndex
-	varSet.InitValue = elm[paramIndex]
-	varSet.Variables = parameters
-
-	if (varSet.InitValue + 0.5*varSet.InitValue) > 1.0 {
-		varSet.MaxValue = 1.0
-	} else {
-		varSet.MaxValue = varSet.InitValue + 0.5*varSet.InitValue
-	}
-
-	if (varSet.InitValue - 0.5*varSet.InitValue) < 0.0 {
-		varSet.MinValue = 0.0
-	} else {
-		varSet.MinValue = varSet.InitValue - 0.5*varSet.InitValue
-	}
-
-	// return
-	return varSet
+	return varDataSet
 }
 
-func (lo *linearMatrixOptimizer) evaluateDeltaE(linearMatElm []float64) {
+// make data set
+func (lo *linearMatrixOptimizer) makeDataSet(index, splitNum int, variableSet [][]float64) [][]float64 {
+	stocker := make([][]float64, splitNum)
+	startPOS := index * splitNum
+	endPOS := (index + 1) * splitNum
+	copy(stocker, variableSet[startPOS:endPOS])
+
+	return stocker
+}
+
+func (lo *linearMatrixOptimizer) evaluateDeltaE(linearMatElm []float64) []models.ColorCode {
 	// initialize results
 	devColorCodes := make([]models.ColorCode, 0)
+	ccController := NewColorChartController()
 
-	// check number of trial
-	if lo.numOfTrial == 0 {
-		devColorCodes = lo.colorChartController.RunDevice(
-			lo.dataSet.linearMat,
-			lo.dataSet.dataPath,
-			lo.dataSet.devQE,
-			lo.dataSet.ill,
-			lo.dataSet.gamma,
-			linearMatElm,
-		)
-	}
-	// not initial
-	devColorCodes = lo.colorChartController.RunDeiceBatch(
+	devColorCodes = ccController.RunDevice(
+		lo.dataSet.linearMat,
+		lo.dataSet.dataPath,
+		lo.dataSet.devQE,
+		lo.dataSet.ill,
 		lo.dataSet.gamma,
 		linearMatElm,
 	)
 
-	// store the value
-	lo.devColorCode = devColorCodes
-
-	// update flog
-	lo.numOfTrial++
-
+	// return
+	return devColorCodes
 }
 
 // serializer
@@ -231,10 +179,31 @@ func (lo *linearMatrixOptimizer) serializeData(data models.ColorCode) []float64 
 /*
 Run :
 */
-func (lo *linearMatrixOptimizer) Run(trial int, linearMatElm []float64) {
+func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64) {
 
 	// --- Step-1 ----
 	// make variable set
-	lo.makeVariableSet(linearMatElm)
+	variableSet := lo.makeVariableSet(splitNum, linearMatElm)
+	devColorCode := make([]models.ColorCode, 0)
+
+	// --- Step-2 ---
+	// make data set
+	dataSet := make([][][]float64, 0)
+	for index := 0; index < len(linearMatElm); index++ {
+		data := lo.makeDataSet(index, splitNum, variableSet)
+		dataSet = append(dataSet, data)
+	}
+
+	// --- Step-3 ---
+	// calculate device Lab
+	for _, elmSet := range dataSet {
+		for _, elm := range elmSet {
+			devColorCode = lo.evaluateDeltaE(elm)
+			for _, code := range devColorCode {
+				bitcode := lo.serializeData(code)
+				fmt.Println(bitcode)
+			}
+		}
+	}
 
 }

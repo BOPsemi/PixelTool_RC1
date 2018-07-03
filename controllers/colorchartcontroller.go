@@ -82,6 +82,7 @@ func (cg *colorChartController) RunDevice(linearMatDataPath, dataPath, deviceQED
 	cg.setEnv(linearMatDataPath, dataPath, deviceQEDataPath, lightSource)
 
 	// run and retrun result
+	cg.cleanUp()
 	return cg.runDevice(gamma, linearMat)
 }
 
