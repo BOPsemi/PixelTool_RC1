@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"PixelTool_RC1/models"
-	"fmt"
 	"strconv"
 )
 
@@ -27,15 +26,14 @@ type LinearMatrixOptimizer interface {
 
 //
 type linearMatrixOptimizer struct {
-	orgElm     []float64
-	refBitCode [][]float64
+	refBitCode    [][]float64        // reference patch bit codes
+	dataElmSet    [][][]float64      // parametric elm data
+	dataDeltaESet [][]models.DataSet // parametric deltaE data
 
 	numOfTrial int
 
-	deltaEvalController  DeltaEvaluationController
-	colorChartController ColorChartController
-
-	dataSet struct {
+	// setting information struct
+	settingInfo struct {
 		linearMat string
 		dataPath  string
 		devQE     string
@@ -61,12 +59,12 @@ SetEnv : set simulation enviroment
 */
 func (lo *linearMatrixOptimizer) SetEnv(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64) bool {
 
-	// make data set
-	lo.dataSet.linearMat = linearMatDataPath
-	lo.dataSet.dataPath = dataPath
-	lo.dataSet.devQE = deviceQEDataPath
-	lo.dataSet.ill = lightSource
-	lo.dataSet.gamma = gamma
+	// upload simualtio enviroment info
+	lo.settingInfo.linearMat = linearMatDataPath
+	lo.settingInfo.dataPath = dataPath
+	lo.settingInfo.devQE = deviceQEDataPath
+	lo.settingInfo.ill = lightSource
+	lo.settingInfo.gamma = gamma
 
 	// return
 	return true
@@ -74,6 +72,7 @@ func (lo *linearMatrixOptimizer) SetEnv(linearMatDataPath, dataPath, deviceQEDat
 
 // serializer
 func (lo *linearMatrixOptimizer) serializeData(data models.ColorCode) []float64 {
+	// initialize buffer
 	rgbData := make([]float64, 0)
 
 	// serialize
@@ -159,6 +158,43 @@ func (lo *linearMatrixOptimizer) makeDataSet(index, splitNum int, variableSet []
 	return stocker
 }
 
+// make deltaE data set
+func (lo *linearMatrixOptimizer) makeDeltaEDataSet(dataSet [][][]float64) [][]models.DataSet {
+	// init stocker
+	dataElmSet := make([][]models.DataSet, 0)
+
+	// start to make data set
+	for _, elmSet := range dataSet {
+
+		// init stocker
+		dataElm := make([]models.DataSet, 0)
+
+		for _, elm := range elmSet {
+			// calculate device response by using elm (linea matrix elements)
+			devBitCode := lo.calculateDevResponse(elm)
+
+			// calculate deltaE
+			deltaEEvalController := NewDeltaEvaluationController()
+			kvalues := []float64{1.0, 1.0, 1.0}
+			deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
+
+			// create dataSet object
+			data := new(models.DataSet)
+			data.DeltaE = deltaE
+			data.DeltaEAve = deltaEAve
+			data.Elm = make([]float64, 6)
+			copy(data.Elm, elm)
+
+			// stock
+			dataElm = append(dataElm, *data)
+		}
+
+		dataElmSet = append(dataElmSet, dataElm)
+	}
+
+	return dataElmSet
+}
+
 func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) [][]float64 {
 	// initialize results
 	ccController := NewColorChartController()
@@ -166,11 +202,11 @@ func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) []
 	// calculate device response
 	// return all channel data
 	devColorCodes := ccController.RunDevice(
-		lo.dataSet.linearMat,
-		lo.dataSet.dataPath,
-		lo.dataSet.devQE,
-		lo.dataSet.ill,
-		lo.dataSet.gamma,
+		lo.settingInfo.linearMat,
+		lo.settingInfo.dataPath,
+		lo.settingInfo.devQE,
+		lo.settingInfo.ill,
+		lo.settingInfo.gamma,
 		linearMatElm,
 	)
 
@@ -201,40 +237,10 @@ func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64
 		data := lo.makeDataSet(index, splitNum, variableSet)
 		dataSet = append(dataSet, data)
 	}
+	lo.dataElmSet = dataSet
 
 	// --- Step-3 ---
-	// calculate device Lab
-	minDeltaEAve := 10.0
-	minSetNum := 0
-	minElmNum := 0
-	minDeltaE := make([]float64, 0)
-	minElm := make([]float64, 0)
-
-	for setNum, elmSet := range dataSet {
-
-		// iniit stocker
-
-		for elmNum, elm := range elmSet {
-
-			// calculate device response by using elm (linea matrix elements)
-			devBitCode := lo.calculateDevResponse(elm)
-
-			// calculate deltaE
-			deltaEEvalController := NewDeltaEvaluationController()
-			kvalues := []float64{1.0, 1.0, 1.0}
-			deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
-
-			if deltaEAve < minDeltaEAve {
-				minDeltaEAve = deltaEAve
-				minSetNum = setNum
-				minElmNum = elmNum
-				minDeltaE = deltaE
-				minElm = elm
-			}
-
-		}
-	}
-
-	fmt.Println(minDeltaE, minDeltaEAve, minElmNum, minSetNum, minElm)
+	// meke data set
+	lo.dataDeltaESet = lo.makeDeltaEDataSet(dataSet)
 
 }
