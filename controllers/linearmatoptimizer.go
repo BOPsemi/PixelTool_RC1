@@ -2,11 +2,15 @@ package controllers
 
 import (
 	"PixelTool_RC1/models"
+	"fmt"
+	"math"
+	"math/rand"
 	"strconv"
+	"time"
 )
 
 /*
-DataSet
+DataSet :definition of data set
 */
 type DataSet struct {
 	Index     int       // parameter index
@@ -26,6 +30,7 @@ type LinearMatrixOptimizer interface {
 
 //
 type linearMatrixOptimizer struct {
+	orgElm        []float64          // original linear matrix elements
 	refBitCode    [][]float64        // reference patch bit codes
 	dataElmSet    [][][]float64      // parametric elm data
 	dataDeltaESet [][]models.DataSet // parametric deltaE data
@@ -221,10 +226,43 @@ func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) []
 	return bitcodes
 }
 
+// shuffle the data set
+func (lo *linearMatrixOptimizer) shuffleDeltaEDataSet(deltaEDatSet []models.DataSet) []models.DataSet {
+	newDeltaEDataSet := make([]models.DataSet, len(deltaEDatSet))
+	copy(newDeltaEDataSet, deltaEDatSet)
+
+	// random number
+	rand.Seed(time.Now().UnixNano())
+
+	number := len(newDeltaEDataSet)
+	for index := number - 1; index >= 0; index-- {
+		jump := rand.Intn(index + 1)
+		newDeltaEDataSet[index], newDeltaEDataSet[jump] = newDeltaEDataSet[jump], newDeltaEDataSet[index]
+	}
+
+	return newDeltaEDataSet
+}
+
+// gradient
+func (lo *linearMatrixOptimizer) gradient(elmIndex int, targetDeltaEAve float64, deltaEDataSet []models.DataSet, bachSize int) float64 {
+	result := 0.0
+	for _, data := range deltaEDataSet[0:bachSize] {
+		//result += (data.DeltaEAve - targetDeltaEAve) * data.Elm[elmIndex]
+		result += (data.DeltaEAve - targetDeltaEAve)
+	}
+
+	return result
+}
+
 /*
 Run :
 */
 func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64) {
+
+	// --- Step-0 ---
+	// save original elm mat
+	lo.orgElm = make([]float64, 6)
+	copy(lo.orgElm, linearMatElm)
 
 	// --- Step-1 ----
 	// make variable set
@@ -242,5 +280,47 @@ func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64
 	// --- Step-3 ---
 	// meke data set
 	lo.dataDeltaESet = lo.makeDeltaEDataSet(dataSet)
+
+	// --- Step-4 ---
+	// optimization
+
+	/*
+		dataDeltaESetA := lo.dataDeltaESet[0] // weep a- parameter
+		shuffledDataSet := lo.shuffleDeltaEDataSet(dataDeltaESetA)
+	*/
+
+	elmIndex := 0
+	targetDeltaE := 2.0
+	bachSize := 10
+	learningRateC := 0.01
+	epsilon := 0.0001
+
+	grad2Integ := 0.0
+
+	for trial := 0; trial < 100; trial++ {
+		for index := 0; index < 6; index++ {
+			if index != elmIndex {
+				shuffledDataSet := lo.shuffleDeltaEDataSet(lo.dataDeltaESet[elmIndex])
+				grad := lo.gradient(index, targetDeltaE, shuffledDataSet, bachSize)
+				grad2 := grad * grad
+				grad2Integ += grad2
+
+				learningRate := learningRateC / (math.Sqrt(grad2Integ) + epsilon)
+				update := -(learningRate * grad)
+
+				updatedElm := lo.orgElm[index] + update
+
+				fmt.Println(learningRate, lo.orgElm[index], updatedElm)
+
+			}
+		}
+		fmt.Println("---", trial, "---")
+	}
+
+	/*
+		resultA := lo.gradient(1, 2.0, shuffledDataSet, 5)
+
+		fmt.Println(resultA)
+	*/
 
 }
