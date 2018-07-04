@@ -14,7 +14,7 @@ var (
 	ill      = models.D65
 	gamma    = 0.45
 
-	refCCPath = "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/dev_color_patch.csv"
+	refCCPath = "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/data/std_color_patch.csv"
 )
 
 func Test_NewLinearMatrixOptimizer(t *testing.T) {
@@ -45,7 +45,7 @@ func Test_Run(t *testing.T) {
 	obj.SetRefColorCode(refCCPath)
 
 	// make linear matrix
-	linearMatElm := []float64{0.136, 0.031, 0.024, 0.063, 0.041, 0.657}
+	linearMatElm := []float64{0.2201, 0.005, 0.0432, 0.0926, 0.001581, 0.398}
 
 	// run
 	obj.Run(100, 5, linearMatElm)

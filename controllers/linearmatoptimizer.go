@@ -27,9 +27,8 @@ type LinearMatrixOptimizer interface {
 
 //
 type linearMatrixOptimizer struct {
-	orgElm       []float64
-	devColorCode []models.ColorCode
-	refColorCode []models.ColorCode
+	orgElm     []float64
+	refBitCode [][]float64
 
 	numOfTrial int
 
@@ -52,9 +51,6 @@ func NewLinearMatrixOptimizer() LinearMatrixOptimizer {
 	obj := new(linearMatrixOptimizer)
 
 	// initialize properties
-	obj.deltaEvalController = NewDeltaEvaluationController()
-	obj.colorChartController = NewColorChartController()
-
 	obj.numOfTrial = 0
 
 	return obj
@@ -76,16 +72,42 @@ func (lo *linearMatrixOptimizer) SetEnv(linearMatDataPath, dataPath, deviceQEDat
 	return true
 }
 
+// serializer
+func (lo *linearMatrixOptimizer) serializeData(data models.ColorCode) []float64 {
+	rgbData := make([]float64, 0)
+
+	// serialize
+	rawRGBdata := data.SerializeData()
+
+	// extract value and parse the data to float64
+	for index, rgb := range rawRGBdata {
+		if index > 1 && index < 5 {
+			value, err := strconv.ParseFloat(rgb, 64)
+			if err == nil {
+				rgbData = append(rgbData, value)
+			}
+		}
+	}
+
+	// return
+	return rgbData
+}
+
 /*
 SetRefColorCode
 */
 func (lo *linearMatrixOptimizer) SetRefColorCode(filepath string) bool {
-	ccController := NewColorChartController()
-	lo.refColorCode = ccController.RunStandad(filepath)
+	bitcodes := make([][]float64, 0)
 
-	if len(lo.refColorCode) == 0 {
-		return false
+	// calculate ref 8bit RGB code
+	refColorCode := models.ReadColorCode(filepath)
+	for _, rawdata := range refColorCode {
+		rgb := lo.serializeData(rawdata)
+		bitcodes = append(bitcodes, rgb)
 	}
+
+	// update
+	lo.refBitCode = bitcodes
 
 	return true
 }
@@ -137,12 +159,13 @@ func (lo *linearMatrixOptimizer) makeDataSet(index, splitNum int, variableSet []
 	return stocker
 }
 
-func (lo *linearMatrixOptimizer) evaluateDeltaE(linearMatElm []float64) []models.ColorCode {
+func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) [][]float64 {
 	// initialize results
-	devColorCodes := make([]models.ColorCode, 0)
 	ccController := NewColorChartController()
 
-	devColorCodes = ccController.RunDevice(
+	// calculate device response
+	// return all channel data
+	devColorCodes := ccController.RunDevice(
 		lo.dataSet.linearMat,
 		lo.dataSet.dataPath,
 		lo.dataSet.devQE,
@@ -151,29 +174,15 @@ func (lo *linearMatrixOptimizer) evaluateDeltaE(linearMatElm []float64) []models
 		linearMatElm,
 	)
 
-	// return
-	return devColorCodes
-}
-
-// serializer
-func (lo *linearMatrixOptimizer) serializeData(data models.ColorCode) []float64 {
-	rgbData := make([]float64, 0)
-
-	// serialize
-	rawRGBdata := data.SerializeData()
-
-	// extract value and parse the data to float64
-	for index, rgb := range rawRGBdata {
-		if index > 1 && index < 5 {
-			value, err := strconv.ParseFloat(rgb, 64)
-			if err == nil {
-				rgbData = append(rgbData, value)
-			}
-		}
+	// serialize the data
+	bitcodes := make([][]float64, 0)
+	for _, rawdata := range devColorCodes {
+		rgb := lo.serializeData(rawdata)
+		bitcodes = append(bitcodes, rgb)
 	}
 
 	// return
-	return rgbData
+	return bitcodes
 }
 
 /*
@@ -184,7 +193,6 @@ func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64
 	// --- Step-1 ----
 	// make variable set
 	variableSet := lo.makeVariableSet(splitNum, linearMatElm)
-	devColorCode := make([]models.ColorCode, 0)
 
 	// --- Step-2 ---
 	// make data set
@@ -196,14 +204,37 @@ func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64
 
 	// --- Step-3 ---
 	// calculate device Lab
-	for _, elmSet := range dataSet {
-		for _, elm := range elmSet {
-			devColorCode = lo.evaluateDeltaE(elm)
-			for _, code := range devColorCode {
-				bitcode := lo.serializeData(code)
-				fmt.Println(bitcode)
+	minDeltaEAve := 10.0
+	minSetNum := 0
+	minElmNum := 0
+	minDeltaE := make([]float64, 0)
+	minElm := make([]float64, 0)
+
+	for setNum, elmSet := range dataSet {
+
+		// iniit stocker
+
+		for elmNum, elm := range elmSet {
+
+			// calculate device response by using elm (linea matrix elements)
+			devBitCode := lo.calculateDevResponse(elm)
+
+			// calculate deltaE
+			deltaEEvalController := NewDeltaEvaluationController()
+			kvalues := []float64{1.0, 1.0, 1.0}
+			deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
+
+			if deltaEAve < minDeltaEAve {
+				minDeltaEAve = deltaEAve
+				minSetNum = setNum
+				minElmNum = elmNum
+				minDeltaE = deltaE
+				minElm = elm
 			}
+
 		}
 	}
+
+	fmt.Println(minDeltaE, minDeltaEAve, minElmNum, minSetNum, minElm)
 
 }

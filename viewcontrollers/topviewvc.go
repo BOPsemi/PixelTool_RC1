@@ -44,16 +44,16 @@ func (vc *topViewViewController) EvaluateDeltaE(colorSpace models.ColorSpace, re
 
 	// --- Stage 2 ---
 	// calculate
-	results, _ := vc.deltaEval.RunDeltaEEvaluation(models.SRGB, [][]float64{}, [][]float64{}, kvalues)
+	deltaE, _ := vc.deltaEval.RunDeltaEEvaluation(colorSpace, [][]float64{}, [][]float64{}, kvalues)
 
 	// --- Stage 3 ---
 	// check
-	if len(results) == 0 {
+	if len(deltaE) == 0 {
 		return []float64{}, false
 	}
 
 	// return
-	return results, true
+	return deltaE, true
 }
 
 /*

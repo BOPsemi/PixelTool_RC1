@@ -101,8 +101,9 @@ func (dc *deltaEvaluationController) RGBtoLabConversion(colorSpace models.ColorS
 	spaceChanger := NewColorSpaceChange()
 
 	// whitpoint file path
-	dirhandler := util.NewDirectoryHandler()
-	path := dirhandler.GetCurrentDirectoryPath() + "/json/whitepoint.json"
+	//dirhandler := util.NewDirectoryHandler()
+	//path := dirhandler.GetCurrentDirectoryPath() + "/json/whitepoint.json"
+	path := "/Users/kazufumiwatanabe/go/src/PixelTool_RC1/json/whitepoint.json"
 
 	// set white point
 	if !spaceChanger.ReadWhitePoint(path) {
@@ -131,6 +132,9 @@ func (dc *deltaEvaluationController) RunDeltaEEvaluation(colorSpace models.Color
 	if len(refData)*len(compData) == 0 {
 		ref = dc.refData
 		comp = dc.compData
+	} else {
+		ref = refData
+		comp = compData
 	}
 
 	// RGBtoLab Conversion
