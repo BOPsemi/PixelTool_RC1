@@ -3,7 +3,6 @@ package controllers
 import (
 	"PixelTool_RC1/models"
 	"fmt"
-	"math"
 	"math/rand"
 	"strconv"
 	"time"
@@ -26,6 +25,7 @@ type LinearMatrixOptimizer interface {
 	SetEnv(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64) bool
 	SetRefColorCode(filepath string) bool
 	Run(splitNum, trial int, linearMatElm []float64)
+	RunAdaGrad(elm []float64, deltaP float64, bachSize int)
 }
 
 //
@@ -116,90 +116,6 @@ func (lo *linearMatrixOptimizer) SetRefColorCode(filepath string) bool {
 	return true
 }
 
-func (lo *linearMatrixOptimizer) makeVariableSet(splitNum int, elm []float64) [][]float64 {
-	varDataSet := make([][]float64, 0)
-
-	for pos := 0; pos < len(elm); pos++ {
-
-		// calculate parameter sweep
-		targetInitValue := elm[pos]
-		targetMaxValue := targetInitValue + targetInitValue*0.5
-		if targetMaxValue > 1.0 {
-			targetMaxValue = 1.0
-		}
-		targetMinValue := targetInitValue - targetInitValue*0.5
-		if targetMinValue < 0.0 {
-			targetMinValue = 0.0
-		}
-
-		// calculate min value and step
-		variables := targetMinValue
-		step := (targetMaxValue - targetMinValue) / float64(splitNum)
-
-		for index := 0; index < splitNum; index++ {
-
-			// make stocker
-			stocker := make([]float64, len(elm))
-			copy(stocker, elm)
-
-			variables += step
-			stocker[pos] = variables
-
-			//fmt.Println(stocker)
-			varDataSet = append(varDataSet, stocker)
-		}
-	}
-
-	return varDataSet
-}
-
-// make data set
-func (lo *linearMatrixOptimizer) makeDataSet(index, splitNum int, variableSet [][]float64) [][]float64 {
-	stocker := make([][]float64, splitNum)
-	startPOS := index * splitNum
-	endPOS := (index + 1) * splitNum
-	copy(stocker, variableSet[startPOS:endPOS])
-
-	return stocker
-}
-
-// make deltaE data set
-func (lo *linearMatrixOptimizer) makeDeltaEDataSet(dataSet [][][]float64) [][]models.DataSet {
-	// init stocker
-	dataElmSet := make([][]models.DataSet, 0)
-
-	// start to make data set
-	for _, elmSet := range dataSet {
-
-		// init stocker
-		dataElm := make([]models.DataSet, 0)
-
-		for _, elm := range elmSet {
-			// calculate device response by using elm (linea matrix elements)
-			devBitCode := lo.calculateDevResponse(elm)
-
-			// calculate deltaE
-			deltaEEvalController := NewDeltaEvaluationController()
-			kvalues := []float64{1.0, 1.0, 1.0}
-			deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
-
-			// create dataSet object
-			data := new(models.DataSet)
-			data.DeltaE = deltaE
-			data.DeltaEAve = deltaEAve
-			data.Elm = make([]float64, 6)
-			copy(data.Elm, elm)
-
-			// stock
-			dataElm = append(dataElm, *data)
-		}
-
-		dataElmSet = append(dataElmSet, dataElm)
-	}
-
-	return dataElmSet
-}
-
 func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) [][]float64 {
 	// initialize results
 	ccController := NewColorChartController()
@@ -226,32 +142,90 @@ func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) []
 	return bitcodes
 }
 
-// shuffle the data set
-func (lo *linearMatrixOptimizer) shuffleDeltaEDataSet(deltaEDatSet []models.DataSet) []models.DataSet {
-	newDeltaEDataSet := make([]models.DataSet, len(deltaEDatSet))
-	copy(newDeltaEDataSet, deltaEDatSet)
+func (lo *linearMatrixOptimizer) gradient(elm []float64, deltaParcentage float64) []float64 {
 
-	// random number
-	rand.Seed(time.Now().UnixNano())
+	// stocker
+	gradDeltaE := make([]float64, 0)
 
-	number := len(newDeltaEDataSet)
-	for index := number - 1; index >= 0; index-- {
-		jump := rand.Intn(index + 1)
-		newDeltaEDataSet[index], newDeltaEDataSet[jump] = newDeltaEDataSet[jump], newDeltaEDataSet[index]
+	// sweep elm number
+	for elmNumber, elmValue := range elm {
+		// calculate shift range
+		plusVal := elmValue + elmValue*deltaParcentage*0.01
+		minusVal := elmValue - elmValue*deltaParcentage*0.01
+		deltaVal := plusVal - minusVal
+
+		// make shifted elm
+		plusElm := make([]float64, len(elm))
+		minusElm := make([]float64, len(elm))
+
+		copy(plusElm, elm)
+		copy(minusElm, elm)
+
+		plusElm[elmNumber] = plusVal
+		minusElm[elmNumber] = minusVal
+
+		// define deltaE calculator
+		calculateDeltaE := func(linerElm []float64) (eachDeltaE []float64, deltaEAve float64) {
+			devBitCode := lo.calculateDevResponse(linerElm)
+
+			deltaEEvalController := NewDeltaEvaluationController()
+			kvalues := []float64{1.0, 1.0, 1.0}
+			deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
+
+			return deltaE, deltaEAve
+		}
+
+		// calculate gradient
+		_, plusDeltaEAve := calculateDeltaE(plusElm)
+		_, minusDeltaEAve := calculateDeltaE(minusElm)
+		divDeltaE := (plusDeltaEAve - minusDeltaEAve) / deltaVal
+
+		// stock
+		gradDeltaE = append(gradDeltaE, divDeltaE)
 	}
 
-	return newDeltaEDataSet
+	// return
+	return gradDeltaE
 }
 
-// gradient
-func (lo *linearMatrixOptimizer) gradient(elmIndex int, targetDeltaEAve float64, deltaEDataSet []models.DataSet, bachSize int) float64 {
-	result := 0.0
-	for _, data := range deltaEDataSet[0:bachSize] {
-		//result += (data.DeltaEAve - targetDeltaEAve) * data.Elm[elmIndex]
-		result += (data.DeltaEAve - targetDeltaEAve)
+func (lo *linearMatrixOptimizer) randVarGenerator(rangePer, oriValue float64) float64 {
+	rand.Seed(time.Now().UnixNano())
+
+	max := oriValue + oriValue*rangePer*0.01
+	min := oriValue - oriValue*rangePer*0.01
+
+	return rand.Float64()*(max-min) + min
+
+}
+
+/*
+RunAdaGrad : run AdaGrad
+*/
+func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, deltaP float64, bachSize int) {
+
+	for elmIndex := 0; elmIndex < len(elm); elmIndex++ {
+		// make new elm matrix
+		newElm := make([]float64, len(elm))
+		copy(newElm, elm)
+
+		// stocker
+		//stocker := make([]float64, 0)
+		for trial := 0; trial < bachSize*10; trial++ {
+			// randomize the data
+			randElmValue := lo.randVarGenerator(deltaP, elm[elmIndex])
+			newElm[elmIndex] = randElmValue
+
+			// calculate gradient
+			gradDeltaE := lo.gradient(newElm, deltaP)
+			fmt.Println(gradDeltaE[elmIndex])
+		}
+
 	}
 
-	return result
+	// calculate gradient
+	//gradDeltaE := lo.gradient(elm, deltaP)
+	//fmt.Println(gradDeltaE)
+
 }
 
 /*
@@ -264,63 +238,73 @@ func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64
 	lo.orgElm = make([]float64, 6)
 	copy(lo.orgElm, linearMatElm)
 
-	// --- Step-1 ----
-	// make variable set
-	variableSet := lo.makeVariableSet(splitNum, linearMatElm)
+	// --- Step-1 ---
+	// initialize elm update
+	elm := make([]float64, 6)
+	copy(elm, lo.orgElm)
 
-	// --- Step-2 ---
-	// make data set
-	dataSet := make([][][]float64, 0)
-	for index := 0; index < len(linearMatElm); index++ {
-		data := lo.makeDataSet(index, splitNum, variableSet)
-		dataSet = append(dataSet, data)
-	}
-	lo.dataElmSet = dataSet
+	// starage of min deltaE condition
+	minDeltaEdataSet := new(models.DataSet)
+	minDeltaEAve := 10.0
 
-	// --- Step-3 ---
-	// meke data set
-	lo.dataDeltaESet = lo.makeDeltaEDataSet(dataSet)
+	for loop := 0; loop < trial; loop++ {
+		for elmIndex := 0; elmIndex < len(lo.orgElm); elmIndex++ {
 
-	// --- Step-4 ---
-	// optimization
+			// calculate paramter sweep range and step
+			initElmValue := elm[elmIndex]
+			maxElmValue := initElmValue + initElmValue*0.8
+			if maxElmValue > 1.0 {
+				maxElmValue = 1.0
+			}
+			minElmValue := initElmValue - initElmValue*0.8
+			if minElmValue < 0.0 {
+				minElmValue = 0.0
+			}
+			step := (maxElmValue - minElmValue) / float64(splitNum)
 
-	/*
-		dataDeltaESetA := lo.dataDeltaESet[0] // weep a- parameter
-		shuffledDataSet := lo.shuffleDeltaEDataSet(dataDeltaESetA)
-	*/
+			// generate data set
+			deltaEDataSet := make([]models.DataSet, 0)
+			variable := 0.0
 
-	elmIndex := 0
-	targetDeltaE := 2.0
-	bachSize := 10
-	learningRateC := 0.01
-	epsilon := 0.0001
+			for index := 0; index < splitNum; index++ {
 
-	grad2Integ := 0.0
+				// make new elm matrix for sweeping
+				newElm := make([]float64, 6)
+				copy(newElm, elm)
 
-	for trial := 0; trial < 100; trial++ {
-		for index := 0; index < 6; index++ {
-			if index != elmIndex {
-				shuffledDataSet := lo.shuffleDeltaEDataSet(lo.dataDeltaESet[elmIndex])
-				grad := lo.gradient(index, targetDeltaE, shuffledDataSet, bachSize)
-				grad2 := grad * grad
-				grad2Integ += grad2
+				variable += step
+				newElm[elmIndex] = minElmValue + variable
 
-				learningRate := learningRateC / (math.Sqrt(grad2Integ) + epsilon)
-				update := -(learningRate * grad)
+				//  calculate deltaE
+				if newElm[elmIndex] == 0.0 || newElm[elmIndex] == 1.0 {
+					break
+				}
 
-				updatedElm := lo.orgElm[index] + update
+				// calculate device response by using elm (linea matrix elements)
+				devBitCode := lo.calculateDevResponse(newElm)
 
-				fmt.Println(learningRate, lo.orgElm[index], updatedElm)
+				// calculate deltaE
+				deltaEEvalController := NewDeltaEvaluationController()
+				kvalues := []float64{1.0, 1.0, 1.0}
+				deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
 
+				// create dataSet object
+				data := new(models.DataSet)
+				data.DeltaE = deltaE
+				data.DeltaEAve = deltaEAve
+				data.Elm = make([]float64, 6)
+				copy(data.Elm, newElm)
+
+				deltaEDataSet = append(deltaEDataSet, *data) // stock elm data
+
+				if data.DeltaEAve < minDeltaEAve {
+					minDeltaEdataSet = data
+					minDeltaEAve = minDeltaEdataSet.DeltaEAve
+					elm = minDeltaEdataSet.Elm
+				}
 			}
 		}
-		fmt.Println("---", trial, "---")
+
 	}
-
-	/*
-		resultA := lo.gradient(1, 2.0, shuffledDataSet, 5)
-
-		fmt.Println(resultA)
-	*/
-
+	fmt.Println(elm, minDeltaEAve)
 }

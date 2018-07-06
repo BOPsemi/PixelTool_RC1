@@ -45,9 +45,26 @@ func Test_Run(t *testing.T) {
 	obj.SetRefColorCode(refCCPath)
 
 	// make linear matrix
-	linearMatElm := []float64{0.2201, 0.005, 0.0432, 0.0926, 0.001581, 0.398}
+	linearMatElm := []float64{0.2201, 0.005, 0.0432, 0.0926, 0.00015, 0.398}
 
 	// run
-	obj.Run(100, 5, linearMatElm)
+	obj.Run(50, 5, linearMatElm)
+
+}
+
+func Test_RunAdaGrad(t *testing.T) {
+	obj := NewLinearMatrixOptimizer()
+
+	// set enviroment for first run
+	obj.SetEnv(linarMat, dataPath, devQE, ill, gamma)
+
+	// set Ref CC
+	obj.SetRefColorCode(refCCPath)
+
+	// make linear matrix
+	elm := []float64{0.2201, 0.005, 0.0432, 0.0926, 0.00015, 0.398}
+
+	// run
+	obj.RunAdaGrad(elm, 1.0, 5)
 
 }
