@@ -5,6 +5,7 @@ DataSet	:definition of deltaE data model
 */
 type DataSet struct {
 	DeltaE    []float64 // each patch deltaE data
+	DivDeltaE []float64
 	DeltaEAve float64   // averatege of deltaE
 	Elm       []float64 // linear matrix elements
 }

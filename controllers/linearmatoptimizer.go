@@ -25,7 +25,7 @@ type LinearMatrixOptimizer interface {
 	SetEnv(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64) bool
 	SetRefColorCode(filepath string) bool
 	Run(splitNum, trial int, linearMatElm []float64)
-	RunAdaGrad(elm []float64, deltaP float64, bachSize int)
+	RunAdaGrad(elm []float64, targetDeltaE float64, deltaP float64, bachSize int)
 }
 
 //
@@ -142,6 +142,18 @@ func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) []
 	return bitcodes
 }
 
+func (lo *linearMatrixOptimizer) deltaECalculator(elm []float64) ([]float64, float64) {
+
+	devBitCode := lo.calculateDevResponse(elm)
+
+	deltaEEvalController := NewDeltaEvaluationController()
+	kvalues := []float64{1.0, 1.0, 1.0}
+	deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
+
+	return deltaE, deltaEAve
+
+}
+
 func (lo *linearMatrixOptimizer) gradient(elm []float64, deltaParcentage float64) []float64 {
 
 	// stocker
@@ -165,19 +177,25 @@ func (lo *linearMatrixOptimizer) gradient(elm []float64, deltaParcentage float64
 		minusElm[elmNumber] = minusVal
 
 		// define deltaE calculator
-		calculateDeltaE := func(linerElm []float64) (eachDeltaE []float64, deltaEAve float64) {
-			devBitCode := lo.calculateDevResponse(linerElm)
+		/*
+			calculateDeltaE := func(linerElm []float64) (eachDeltaE []float64, deltaEAve float64) {
+				devBitCode := lo.calculateDevResponse(linerElm)
 
-			deltaEEvalController := NewDeltaEvaluationController()
-			kvalues := []float64{1.0, 1.0, 1.0}
-			deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
+				deltaEEvalController := NewDeltaEvaluationController()
+				kvalues := []float64{1.0, 1.0, 1.0}
+				deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
 
-			return deltaE, deltaEAve
-		}
+				return deltaE, deltaEAve
+			}
+		*/
 
 		// calculate gradient
-		_, plusDeltaEAve := calculateDeltaE(plusElm)
-		_, minusDeltaEAve := calculateDeltaE(minusElm)
+		//_, plusDeltaEAve := calculateDeltaE(plusElm)
+		//_, minusDeltaEAve := calculateDeltaE(minusElm)
+
+		_, plusDeltaEAve := lo.deltaECalculator(plusElm)
+		_, minusDeltaEAve := lo.deltaECalculator(minusElm)
+
 		divDeltaE := (plusDeltaEAve - minusDeltaEAve) / deltaVal
 
 		// stock
@@ -201,30 +219,67 @@ func (lo *linearMatrixOptimizer) randVarGenerator(rangePer, oriValue float64) fl
 /*
 RunAdaGrad : run AdaGrad
 */
-func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, deltaP float64, bachSize int) {
+func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64, deltaP float64, bachSize int) {
+	// dataSet stocker
+	dataSetStocker := make([]models.DataSet, 0)
 
-	for elmIndex := 0; elmIndex < len(elm); elmIndex++ {
+	// --- Step-0 ---
+	// make local elm slice
+	localElm := make([]float64, 6)
+	copy(localElm, elm)
+
+	// --- Step-1 ----
+	// make data set
+	for elmIndex := 0; elmIndex < len(localElm); elmIndex++ {
 		// make new elm matrix
-		newElm := make([]float64, len(elm))
-		copy(newElm, elm)
+		newElm := make([]float64, len(localElm))
+		copy(newElm, localElm)
 
-		// stocker
-		//stocker := make([]float64, 0)
-		for trial := 0; trial < bachSize*10; trial++ {
+		for trial := 0; trial < bachSize; trial++ {
 			// randomize the data
-			randElmValue := lo.randVarGenerator(deltaP, elm[elmIndex])
+			randElmValue := lo.randVarGenerator(deltaP*10, localElm[elmIndex])
 			newElm[elmIndex] = randElmValue
+
+			// calculate deltaE with newElm
+			deltaEArray, deltaEAve := lo.deltaECalculator(newElm)
 
 			// calculate gradient
 			gradDeltaE := lo.gradient(newElm, deltaP)
-			fmt.Println(gradDeltaE[elmIndex])
+
+			// calculate div
+			divDeltaE := make([]float64, 0)
+			for _, gradData := range gradDeltaE {
+				div := (deltaEAve - targetDeltaE) * gradData
+				divDeltaE = append(divDeltaE, div)
+			}
+
+			// make data set
+			dataSet := new(models.DataSet)
+			dataSet.DeltaEAve = deltaEAve
+			dataSet.DivDeltaE = divDeltaE
+			dataSet.Elm = make([]float64, 6)
+			copy(dataSet.Elm, newElm)
+
+			dataSet.DeltaE = make([]float64, 24)
+			copy(dataSet.DeltaE, deltaEArray)
+
+			// stock
+			dataSetStocker = append(dataSetStocker, *dataSet)
 		}
 
 	}
 
-	// calculate gradient
-	//gradDeltaE := lo.gradient(elm, deltaP)
-	//fmt.Println(gradDeltaE)
+	// --- Step-2 ---
+	// randomize array order
+
+	// --- Step-3 ---
+	// calculate mini-bach
+
+	// --- Step-4 ---
+	// introduce next feedback
+
+	// --- Step-5 ---
+	// update elm
 
 }
 
