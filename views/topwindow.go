@@ -122,7 +122,19 @@ func (tw *TopWindow) calculateDeltaE(info *models.SettingInfo) {
 
 // optimizeLinearMat
 func (tw *TopWindow) optimizeLinearMat(info *models.SettingInfo) {
+	// calculation
+	_, deltaE, deltaEAve := tw.viewController.OptimizeLinearMatrix(info)
 
+	// display
+	tw.mainWin.messageBox.Append("Optimized result")
+	tw.mainWin.messageBox.Append(strconv.FormatFloat(deltaEAve, 'f', 4, 64) + " : " + time.Now().Format(time.ANSIC))
+
+	// output the result to message box
+	tw.mainWin.messageBox.Append("Delta-E Calculation result")
+	for index, data := range deltaE {
+		str := strconv.Itoa(index+1) + " : " + strconv.FormatFloat(data, 'f', 4, 64)
+		tw.mainWin.messageBox.Append(str)
+	}
 }
 
 // message reciever

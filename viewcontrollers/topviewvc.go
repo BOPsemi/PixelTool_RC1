@@ -11,6 +11,7 @@ TopViewViewController :
 */
 type TopViewViewController interface {
 	GenerateMacbethColorChart(dev bool, info *models.SettingInfo) bool
+	OptimizeLinearMatrix(info *models.SettingInfo) (optMat []float64, deltaE []float64, deltaEAve float64)
 
 	EvaluateDeltaE(colorSpace models.ColorSpace, refDataPath, compDataPath string, kvalues []float64) ([]float64, bool)
 	SaveDeltaEResultData() bool
@@ -179,4 +180,49 @@ func (vc *topViewViewController) GenerateMacbethColorChart(dev bool, info *model
 	}
 
 	return true
+}
+
+/*
+OptimizeLinearMatrix
+	in	;info *models.SettingInfo
+	out	;bool
+*/
+func (vc *topViewViewController) OptimizeLinearMatrix(info *models.SettingInfo) (optMat []float64, deltaE []float64, deltaEAve float64) {
+
+	// make info
+	// --- illumination ---
+	var illumination models.IlluminationCode
+	switch info.LightSource {
+	case "D65":
+		illumination = models.D65
+	case "IllA":
+		illumination = models.IllA
+	default:
+		illumination = models.D65
+	}
+
+	// --- data path ---
+	dirHandler := util.NewDirectoryHandler()
+	dataPath := dirHandler.GetCurrentDirectoryPath() + "/data/"
+
+	// --- ref color chart path ---
+	//stdCCPath := dirHandler.GetCurrentDirectoryPath() + "/data/" + macbethColorCheckerFileName
+	stdCCPath := dirHandler.GetCurrentDirectoryPath() + "/data/" + macbethColorChartCodeFileName
+
+	// initialize optimizer
+	optimizer := controllers.NewLinearMatrixOptimizer()
+	optimizer.SetEnv(
+		info.LinearMatrixDataPath,
+		dataPath,
+		info.DeiceQEDataPath,
+		illumination,
+		info.Gamma,
+	)
+	optimizer.SetRefColorCode(stdCCPath)
+	optimizer.Run(make([]float64, 0), 2.0, 100, 1.0, 5)
+
+	optLinearMat := optimizer.OptimizedLinearMatrix()
+	optDeltaE, optDeltaEAve := optimizer.FinalDeltaEInfo()
+
+	return optLinearMat, optDeltaE, optDeltaEAve
 }

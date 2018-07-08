@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"PixelTool_RC1/models"
+	"PixelTool_RC1/util"
 	"math"
 	"math/rand"
 	"strconv"
@@ -233,6 +234,20 @@ func (lo *linearMatrixOptimizer) randVarGenerator(rangePer, oriValue float64) fl
 
 }
 
+// read csv
+func (lo *linearMatrixOptimizer) readLinearMatElmFromCSV(filepath string) []float64 {
+	iohandler := util.NewIOUtil()
+	elm := make([]float64, 0)
+	if data, ok := iohandler.ReadCSVFile(filepath); ok {
+		for _, strs := range data {
+			value, _ := strconv.ParseFloat(strs[0], 64)
+			elm = append(elm, value)
+		}
+	}
+
+	return elm
+}
+
 /*
 RunAdaGrad : run AdaGrad
 	in	;elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int
@@ -242,9 +257,19 @@ func (lo *linearMatrixOptimizer) Run(elm []float64, targetDeltaE float64, trialN
 
 	// --- Step-0 ---
 	// make local elm slice
-	divStocker := make([]float64, len(elm)) // gradient stocker
-	localElm := make([]float64, len(elm))   // copy of elm
-	copy(localElm, elm)
+
+	divStocker := make([]float64, 6) // gradient stocker
+	localElm := make([]float64, 6)   // copy of elm
+
+	if len(elm) == 0 {
+		csvElm := lo.readLinearMatElmFromCSV(lo.settingInfo.linearMat)
+		copy(localElm, csvElm)
+	} else {
+		copy(localElm, elm)
+	}
+
+	//divStocker := make([]float64, len(elm)) // gradient stocker
+	//localElm := make([]float64, len(elm))   // copy of elm
 
 	// --- Step-1 ---
 	// Start learning

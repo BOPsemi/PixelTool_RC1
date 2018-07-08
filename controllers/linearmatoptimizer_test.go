@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"PixelTool_RC1/models"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,9 +46,15 @@ func Test_Run(t *testing.T) {
 	obj.SetRefColorCode(refCCPath)
 
 	// make linear matrix
-	elm := []float64{0.2201, 0.005, 0.0432, 0.0926, 0.00015, 0.398}
+	//elm := []float64{0.2201, 0.005, 0.0432, 0.0926, 0.00015, 0.398}
+	elm := make([]float64, 0)
 
 	// run
 	obj.Run(elm, 3.0, 10, 1.0, 5)
+
+	// result
+	fmt.Println(obj.OptimizedLinearMatrix())
+	deltaE, deltaEAve := obj.FinalDeltaEInfo()
+	fmt.Println(deltaEAve, deltaE)
 
 }
