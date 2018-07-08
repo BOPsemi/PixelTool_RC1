@@ -2,11 +2,15 @@ package controllers
 
 import (
 	"PixelTool_RC1/models"
-	"fmt"
 	"math"
 	"math/rand"
 	"strconv"
 	"time"
+)
+
+const (
+	learning = 0.1
+	epsilon  = 0.001
 )
 
 /*
@@ -25,18 +29,20 @@ LinearMatrixOptimizer :linear mat optimizer
 type LinearMatrixOptimizer interface {
 	SetEnv(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64) bool
 	SetRefColorCode(filepath string) bool
-	Run(splitNum, trial int, linearMatElm []float64)
-	RunAdaGrad(elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int)
+
+	Run(elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int) bool
+
+	OptimizedLinearMatrix() []float64
+	FinalDeltaEInfo() (deltaE []float64, deltaEAve float64)
+	//Run(splitNum, trial int, linearMatElm []float64)
 }
 
 //
 type linearMatrixOptimizer struct {
-	orgElm        []float64          // original linear matrix elements
-	refBitCode    [][]float64        // reference patch bit codes
-	dataElmSet    [][][]float64      // parametric elm data
-	dataDeltaESet [][]models.DataSet // parametric deltaE data
-
-	numOfTrial int
+	refBitCode   [][]float64 // reference patch bit codes
+	optElm       []float64   // optimized Linear matrix
+	optDeltaEAve float64     // optimized DeltaE ave
+	optDeltaE    []float64   // optimized DeltaE slice
 
 	// setting information struct
 	settingInfo struct {
@@ -54,8 +60,9 @@ NewLinearMatrixOptimizer :initializer
 func NewLinearMatrixOptimizer() LinearMatrixOptimizer {
 	obj := new(linearMatrixOptimizer)
 
-	// initialize properties
-	obj.numOfTrial = 0
+	obj.optElm = make([]float64, 6)
+	obj.optDeltaE = make([]float64, 24)
+	obj.optDeltaEAve = 0.0
 
 	return obj
 }
@@ -99,7 +106,23 @@ func (lo *linearMatrixOptimizer) serializeData(data models.ColorCode) []float64 
 }
 
 /*
-SetRefColorCode
+OptimizedLinearMatrix :getter, return the optimized linear matrix
+*/
+func (lo *linearMatrixOptimizer) OptimizedLinearMatrix() []float64 {
+	return lo.optElm
+}
+
+/*
+FinalDeltaEInfo :getter, return the final deltaE and deltaE Ave.
+*/
+func (lo *linearMatrixOptimizer) FinalDeltaEInfo() (deltaE []float64, deltaEAve float64) {
+	return lo.optDeltaE, lo.optDeltaEAve
+}
+
+/*
+SetRefColorCode :
+	in	;filepath
+	out ;bool
 */
 func (lo *linearMatrixOptimizer) SetRefColorCode(filepath string) bool {
 	bitcodes := make([][]float64, 0)
@@ -117,6 +140,7 @@ func (lo *linearMatrixOptimizer) SetRefColorCode(filepath string) bool {
 	return true
 }
 
+// calculate device response
 func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) [][]float64 {
 	// initialize results
 	ccController := NewColorChartController()
@@ -143,6 +167,7 @@ func (lo *linearMatrixOptimizer) calculateDevResponse(linearMatElm []float64) []
 	return bitcodes
 }
 
+// deltaE calculator
 func (lo *linearMatrixOptimizer) deltaECalculator(elm []float64) ([]float64, float64) {
 
 	devBitCode := lo.calculateDevResponse(elm)
@@ -155,6 +180,7 @@ func (lo *linearMatrixOptimizer) deltaECalculator(elm []float64) ([]float64, flo
 
 }
 
+// calculate gradient at elm points
 func (lo *linearMatrixOptimizer) gradient(elm []float64, deltaParcentage float64) []float64 {
 
 	// stocker
@@ -171,32 +197,19 @@ func (lo *linearMatrixOptimizer) gradient(elm []float64, deltaParcentage float64
 		plusElm := make([]float64, len(elm))
 		minusElm := make([]float64, len(elm))
 
+		// copy
 		copy(plusElm, elm)
 		copy(minusElm, elm)
 
+		// update element value
 		plusElm[elmNumber] = plusVal
 		minusElm[elmNumber] = minusVal
 
-		// define deltaE calculator
-		/*
-			calculateDeltaE := func(linerElm []float64) (eachDeltaE []float64, deltaEAve float64) {
-				devBitCode := lo.calculateDevResponse(linerElm)
-
-				deltaEEvalController := NewDeltaEvaluationController()
-				kvalues := []float64{1.0, 1.0, 1.0}
-				deltaE, deltaEAve := deltaEEvalController.RunDeltaEEvaluation(models.SRGB, lo.refBitCode, devBitCode, kvalues)
-
-				return deltaE, deltaEAve
-			}
-		*/
-
-		// calculate gradient
-		//_, plusDeltaEAve := calculateDeltaE(plusElm)
-		//_, minusDeltaEAve := calculateDeltaE(minusElm)
-
+		// calculate deltaE
 		_, plusDeltaEAve := lo.deltaECalculator(plusElm)
 		_, minusDeltaEAve := lo.deltaECalculator(minusElm)
 
+		// calculate div
 		divDeltaE := (plusDeltaEAve - minusDeltaEAve) / deltaVal
 
 		// stock
@@ -207,32 +220,40 @@ func (lo *linearMatrixOptimizer) gradient(elm []float64, deltaParcentage float64
 	return gradDeltaE
 }
 
+// generate random variations for mini bach calculation
 func (lo *linearMatrixOptimizer) randVarGenerator(rangePer, oriValue float64) float64 {
 	rand.Seed(time.Now().UnixNano())
 
+	// calculate max and min value
 	max := oriValue + oriValue*rangePer*0.01
 	min := oriValue - oriValue*rangePer*0.01
 
+	// return value
 	return rand.Float64()*(max-min) + min
 
 }
 
 /*
 RunAdaGrad : run AdaGrad
+	in	;elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int
+	out	;bool
 */
-func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int) {
+func (lo *linearMatrixOptimizer) Run(elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int) bool {
 
 	// --- Step-0 ---
 	// make local elm slice
-	localElm := make([]float64, len(elm))
+	divStocker := make([]float64, len(elm)) // gradient stocker
+	localElm := make([]float64, len(elm))   // copy of elm
 	copy(localElm, elm)
-	divStocker := make([]float64, len(elm))
 
+	// --- Step-1 ---
+	// Start learning
 	for trial := 0; trial < trialNum; trial++ {
+
 		// dataSet stocker
 		dataSetStocker := make([]models.DataSet, 0)
 
-		// --- Step-1 ----
+		// --- Step-2 ----
 		// make data set
 		for elmIndex := 0; elmIndex < len(localElm); elmIndex++ {
 			// make new elm matrix
@@ -273,7 +294,7 @@ func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64,
 
 		}
 
-		// --- Step-2 ---
+		// --- Step-3 ---
 		// randomize array order
 		randomizedDataSet := make([]models.DataSet, len(dataSetStocker))
 		copy(randomizedDataSet, dataSetStocker)
@@ -285,11 +306,8 @@ func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64,
 			randomizedDataSet[i], randomizedDataSet[j] = randomizedDataSet[j], randomizedDataSet[i]
 		}
 
-		// --- Step-3 ---
+		// --- Step-4 ---
 		// calculate mini-bach
-
-		learning := 0.1
-		epsilon := 0.001
 		bachSum := make([]float64, 6)
 
 		for _, data := range randomizedDataSet {
@@ -297,12 +315,12 @@ func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64,
 				// for AdaGrad
 				divStocker[index] += data.DivDeltaE[index] * data.DivDeltaE[index]
 
-				// for div
+				// mini bach
 				bachSum[index] += learning * data.DivDeltaE[index]
 			}
 		}
 
-		// --- Step-4 ---
+		// --- Step-5 ---
 		// introduce next feedback
 		nextElm := make([]float64, 6)
 		copy(nextElm, localElm)
@@ -310,11 +328,6 @@ func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64,
 			// for Ada Grad
 			learningRate := learning / math.Sqrt(divStocker[index]+epsilon)
 			nextElm[index] = localElm[index] - learningRate*bachSum[index]
-
-			/*
-				// for grad
-				nextElm[index] = localElm[index] - bachSum[index]
-			*/
 
 			// check minus value
 			if nextElm[index] < 0.0 {
@@ -325,14 +338,28 @@ func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64,
 		// --- Step-5 ---
 		// update elm
 		copy(localElm, nextElm)
-		_, updatedDeltaE := lo.deltaECalculator(localElm)
-		fmt.Println(localElm, updatedDeltaE)
+
+		// --- Step-6 ---
+		//update final value
+		updatedDeltaE, updatedDeltaEAve := lo.deltaECalculator(localElm)
+
+		lo.optDeltaEAve = updatedDeltaEAve
+		lo.optDeltaE = updatedDeltaE
+		lo.optElm = localElm
+
+		//fmt.Println(localElm, updatedDeltaEAve)
+
 	}
+	/*
+		fmt.Println("----")
+		fmt.Println(lo.optElm, lo.optDeltaEAve, lo.optDeltaE)
+	*/
+
+	return true
 }
 
 /*
 Run :
-*/
 func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64) {
 
 	// --- Step-0 ---
@@ -410,3 +437,4 @@ func (lo *linearMatrixOptimizer) Run(splitNum, trial int, linearMatElm []float64
 	}
 	fmt.Println(elm, minDeltaEAve)
 }
+*/
