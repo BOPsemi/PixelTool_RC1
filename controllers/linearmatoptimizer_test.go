@@ -62,9 +62,9 @@ func Test_RunAdaGrad(t *testing.T) {
 	obj.SetRefColorCode(refCCPath)
 
 	// make linear matrix
-	elm := []float64{0.2201, 0.005, 0.0432, 0.0926, 0.00015, 0.398}
+	elm := []float64{0.2201, 0.105, 0.0432, 0.0926, 0.00015, 0.398}
 
 	// run
-	obj.RunAdaGrad(elm, 3.0, 1.0, 5)
+	obj.RunAdaGrad(elm, 3.0, 100, 1.0, 5)
 
 }

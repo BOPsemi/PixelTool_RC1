@@ -3,6 +3,7 @@ package controllers
 import (
 	"PixelTool_RC1/models"
 	"fmt"
+	"math"
 	"math/rand"
 	"strconv"
 	"time"
@@ -25,7 +26,7 @@ type LinearMatrixOptimizer interface {
 	SetEnv(linearMatDataPath, dataPath, deviceQEDataPath string, lightSource models.IlluminationCode, gamma float64) bool
 	SetRefColorCode(filepath string) bool
 	Run(splitNum, trial int, linearMatElm []float64)
-	RunAdaGrad(elm []float64, targetDeltaE float64, deltaP float64, bachSize int)
+	RunAdaGrad(elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int)
 }
 
 //
@@ -219,68 +220,114 @@ func (lo *linearMatrixOptimizer) randVarGenerator(rangePer, oriValue float64) fl
 /*
 RunAdaGrad : run AdaGrad
 */
-func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64, deltaP float64, bachSize int) {
-	// dataSet stocker
-	dataSetStocker := make([]models.DataSet, 0)
+func (lo *linearMatrixOptimizer) RunAdaGrad(elm []float64, targetDeltaE float64, trialNum int, deltaP float64, bachSize int) {
 
 	// --- Step-0 ---
 	// make local elm slice
-	localElm := make([]float64, 6)
+	localElm := make([]float64, len(elm))
 	copy(localElm, elm)
+	divStocker := make([]float64, len(elm))
 
-	// --- Step-1 ----
-	// make data set
-	for elmIndex := 0; elmIndex < len(localElm); elmIndex++ {
-		// make new elm matrix
-		newElm := make([]float64, len(localElm))
-		copy(newElm, localElm)
+	for trial := 0; trial < trialNum; trial++ {
+		// dataSet stocker
+		dataSetStocker := make([]models.DataSet, 0)
 
-		for trial := 0; trial < bachSize; trial++ {
-			// randomize the data
-			randElmValue := lo.randVarGenerator(deltaP*10, localElm[elmIndex])
-			newElm[elmIndex] = randElmValue
+		// --- Step-1 ----
+		// make data set
+		for elmIndex := 0; elmIndex < len(localElm); elmIndex++ {
+			// make new elm matrix
+			newElm := make([]float64, len(localElm))
+			copy(newElm, localElm)
 
-			// calculate deltaE with newElm
-			deltaEArray, deltaEAve := lo.deltaECalculator(newElm)
+			for trial := 0; trial < bachSize; trial++ {
+				// randomize the data
+				randElmValue := lo.randVarGenerator(deltaP*20, localElm[elmIndex])
+				newElm[elmIndex] = randElmValue
 
-			// calculate gradient
-			gradDeltaE := lo.gradient(newElm, deltaP)
+				// calculate deltaE with newElm
+				deltaEArray, deltaEAve := lo.deltaECalculator(newElm)
 
-			// calculate div
-			divDeltaE := make([]float64, 0)
-			for _, gradData := range gradDeltaE {
-				div := (deltaEAve - targetDeltaE) * gradData
-				divDeltaE = append(divDeltaE, div)
+				// calculate gradient
+				gradDeltaE := lo.gradient(newElm, deltaP)
+
+				// calculate div
+				divDeltaE := make([]float64, 0)
+				for _, gradData := range gradDeltaE {
+					div := (deltaEAve - targetDeltaE) * gradData
+					divDeltaE = append(divDeltaE, div)
+				}
+
+				// make data set
+				dataSet := new(models.DataSet)
+				dataSet.DeltaEAve = deltaEAve
+				dataSet.DivDeltaE = divDeltaE
+				dataSet.Elm = make([]float64, 6)
+				copy(dataSet.Elm, newElm)
+
+				dataSet.DeltaE = make([]float64, 24)
+				copy(dataSet.DeltaE, deltaEArray)
+
+				// stock
+				dataSetStocker = append(dataSetStocker, *dataSet)
 			}
 
-			// make data set
-			dataSet := new(models.DataSet)
-			dataSet.DeltaEAve = deltaEAve
-			dataSet.DivDeltaE = divDeltaE
-			dataSet.Elm = make([]float64, 6)
-			copy(dataSet.Elm, newElm)
-
-			dataSet.DeltaE = make([]float64, 24)
-			copy(dataSet.DeltaE, deltaEArray)
-
-			// stock
-			dataSetStocker = append(dataSetStocker, *dataSet)
 		}
 
+		// --- Step-2 ---
+		// randomize array order
+		randomizedDataSet := make([]models.DataSet, len(dataSetStocker))
+		copy(randomizedDataSet, dataSetStocker)
+
+		rand.Seed(time.Now().UnixNano())
+		n := len(randomizedDataSet)
+		for i := n - 1; i >= 0; i-- {
+			j := rand.Intn(i + 1)
+			randomizedDataSet[i], randomizedDataSet[j] = randomizedDataSet[j], randomizedDataSet[i]
+		}
+
+		// --- Step-3 ---
+		// calculate mini-bach
+
+		learning := 0.1
+		epsilon := 0.001
+		bachSum := make([]float64, 6)
+
+		for _, data := range randomizedDataSet {
+			for index := 0; index < len(localElm); index++ {
+				// for AdaGrad
+				divStocker[index] += data.DivDeltaE[index] * data.DivDeltaE[index]
+
+				// for div
+				bachSum[index] += learning * data.DivDeltaE[index]
+			}
+		}
+
+		// --- Step-4 ---
+		// introduce next feedback
+		nextElm := make([]float64, 6)
+		copy(nextElm, localElm)
+		for index := 0; index < len(nextElm); index++ {
+			// for Ada Grad
+			learningRate := learning / math.Sqrt(divStocker[index]+epsilon)
+			nextElm[index] = localElm[index] - learningRate*bachSum[index]
+
+			/*
+				// for grad
+				nextElm[index] = localElm[index] - bachSum[index]
+			*/
+
+			// check minus value
+			if nextElm[index] < 0.0 {
+				nextElm[index] = localElm[index]
+			}
+		}
+
+		// --- Step-5 ---
+		// update elm
+		copy(localElm, nextElm)
+		_, updatedDeltaE := lo.deltaECalculator(localElm)
+		fmt.Println(localElm, updatedDeltaE)
 	}
-
-	// --- Step-2 ---
-	// randomize array order
-
-	// --- Step-3 ---
-	// calculate mini-bach
-
-	// --- Step-4 ---
-	// introduce next feedback
-
-	// --- Step-5 ---
-	// update elm
-
 }
 
 /*
